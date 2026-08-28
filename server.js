@@ -6,6 +6,9 @@ const { pool, initDB } = require('./lib/db');
 const { setWebhook } = require('./lib/telegram');
 
 const app = express();
+// Vercel terminates HTTPS at its proxy; this lets express-session issue secure
+// cookies to visitors while keeping a single trusted proxy hop.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 // Each serverless instance waits for the schema before its session middleware
 // queries PostgreSQL (important on the first request after a deployment).
