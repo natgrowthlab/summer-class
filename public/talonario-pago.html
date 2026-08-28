@@ -46,8 +46,11 @@
     <div class="bank-card" style="margin-bottom:20px;">
       <div class="bank-row"><div class="bank-label">Banco</div><div class="bank-value" id="bankName">Bancolombia <button class="copy-btn" onclick="copy('Bancolombia',this)">Copiar</button></div></div>
       <div class="bank-row"><div class="bank-label">Tipo de cuenta</div><div class="bank-value">Ahorros <button class="copy-btn" onclick="copy('Ahorros',this)">Copiar</button></div></div>
-      <div class="bank-row"><div class="bank-label">Número de cuenta</div><div class="bank-value" id="bankAccount">123-456789-00 <button class="copy-btn" onclick="copy('12345678900',this)">Copiar</button></div></div>
+      <div class="bank-row"><div class="bank-label">Número de cuenta</div><div class="bank-value" id="bankAccount">70600002695 <button class="copy-btn" onclick="copy('70600002695',this)">Copiar</button></div></div>
       <div class="bank-row"><div class="bank-label">Titular</div><div class="bank-value" id="bankHolder">Summer Class SAS <button class="copy-btn" onclick="copy('Summer Class SAS',this)">Copiar</button></div></div>
+      <div class="divider"></div>
+      <div class="bank-row"><div class="bank-label">Llave Bancolombia</div><div class="bank-value" id="bankKey">@summerclass <button class="copy-btn" onclick="copy('@summerclass',this)">Copiar</button></div></div>
+      <div class="bank-row"><div class="bank-label">Titular de llave</div><div class="bank-value">Summer Class SAS <button class="copy-btn" onclick="copy('Summer Class SAS',this)">Copiar</button></div></div>
     </div>
 
     <div class="form-group">
@@ -90,6 +93,7 @@
         if (config.bankInfo) {
           document.getElementById('bankAccount').innerHTML = config.bankInfo.account + ' <button class="copy-btn" onclick="copy(\'' + config.bankInfo.account.replace(/-/g,'') + '\',this)">Copiar</button>';
           document.getElementById('bankHolder').innerHTML = config.bankInfo.holder + ' <button class="copy-btn" onclick="copy(\'' + config.bankInfo.holder + '\',this)">Copiar</button>';
+          document.getElementById('bankKey').innerHTML = config.bankInfo.key + ' <button class="copy-btn" onclick="copy(\'' + config.bankInfo.key + '\',this)">Copiar</button>';
         }
       } catch(e) {}
     }

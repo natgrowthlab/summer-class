@@ -58,13 +58,19 @@ router.post('/payments', requireStudent, upload.single('receipt'), async (req, r
   // Construir URL pública del comprobante para Telegram
   const publicReceiptUrl = receiptUrl;
 
-  const telegramMsgId = await sendPaymentNotification({
-    paymentId,
-    student,
-    enrollment,
-    amount: parseInt(amount),
-    receiptUrl: publicReceiptUrl
-  });
+  let telegramMsgId = null;
+  try {
+    telegramMsgId = await sendPaymentNotification({
+      paymentId,
+      student,
+      enrollment,
+      amount: parseInt(amount),
+      receiptUrl: publicReceiptUrl
+    });
+  } catch (error) {
+    // The payment is already stored; a Telegram outage must not block students.
+    console.error('Telegram payment notification failed:', error.message);
+  }
 
   if (telegramMsgId) {
     await pool.query('UPDATE payments SET telegram_message_id = ? WHERE id = ?', [telegramMsgId, paymentId]);

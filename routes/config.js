@@ -9,7 +9,8 @@ router.get('/config', (req, res) => {
     bankInfo: {
       bank: 'Bancolombia',
       type: 'Ahorros',
-      account: '123-456789-00',
+      account: '70600002695',
+      key: '@summerclass',
       holder: 'Summer Class SAS'
     }
   });

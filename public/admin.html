@@ -39,6 +39,7 @@
       <a href="#" onclick="showTab('pending',this)" class="active" id="nav-pending"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg>Pendientes</a>
       <a href="#" onclick="showTab('students',this)" id="nav-students"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg>Estudiantes</a>
       <a href="#" onclick="showTab('talonarios',this)" id="nav-talonarios"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg>Bonos de Apoyo</a>
+      <a href="#" onclick="showTab('telegram',this)" id="nav-telegram"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg>Telegram</a>
       <a href="/admin/logout" style="margin-top:16px;color:var(--text-3)!important;font-size:12px;">← Salir</a>
     </nav>
   </aside>
@@ -59,6 +60,7 @@
       <button class="tab-btn active" onclick="showTab('pending',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg> Pendientes</button>
       <button class="tab-btn" onclick="showTab('students',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg> Estudiantes</button>
       <button class="tab-btn" onclick="showTab('talonarios',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg> Bonos</button>
+      <button class="tab-btn" onclick="showTab('telegram',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg> Telegram</button>
     </div>
 
     <div id="tabPending"><div class="empty"><p>Cargando...</p></div></div>
@@ -93,6 +95,20 @@
 
       <div class="section-label">Talonarios en el sistema</div>
       <div id="talonariosList"><p style="color:var(--text-2);font-size:13px;">Cargando...</p></div>
+    </div>
+
+    <div id="tabTelegram" style="display:none;">
+      <div class="card" style="max-width:560px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;color:var(--cyan);"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg><h3>Bot de Telegram</h3></div>
+        <p style="margin-bottom:18px;">Recibe comprobantes y aprueba o rechaza pagos desde los botones del bot.</p>
+        <div class="alert alert-error" id="telegramError"></div>
+        <div class="alert alert-success" id="telegramSuccess"></div>
+        <div class="form-group"><label for="telegramToken">Token del bot</label><input type="password" id="telegramToken" autocomplete="off" placeholder="Pega el token de @BotFather"></div>
+        <div class="form-group"><label for="telegramChatId">Chat ID que recibe las aprobaciones</label><input type="text" id="telegramChatId" inputmode="numeric" placeholder="Ej: -1001234567890"></div>
+        <p id="telegramStatus" style="font-size:12px;margin:-4px 0 16px;"></p>
+        <button class="btn btn-primary" id="telegramSaveBtn" onclick="saveTelegram()"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg>Guardar y conectar webhook</button>
+        <p style="font-size:11px;color:var(--text-3);margin-top:12px;">El token se guarda de forma privada; nunca vuelve a mostrarse en el panel.</p>
+      </div>
     </div>
   </main>
 </div>
@@ -247,13 +263,48 @@
     else alert(data.error||'Error al eliminar');
   }
 
+  async function loadTelegram(){
+    const res=await fetch('/admin/api/integrations/telegram');
+    const data=await res.json();
+    const status=document.getElementById('telegramStatus');
+    document.getElementById('telegramChatId').value=data.chatId||'';
+    if(data.configured){
+      document.getElementById('telegramToken').placeholder=`Token guardado (${data.tokenHint})`;
+      status.textContent=`Bot conectado. Webhook: ${data.webhookUrl||'se definirá al guardar'}`;
+      status.style.color='var(--success)';
+    } else {
+      status.textContent='Aún no hay un bot configurado.';
+      status.style.color='var(--text-2)';
+    }
+  }
+
+  async function saveTelegram(){
+    const token=document.getElementById('telegramToken').value.trim();
+    const chatId=document.getElementById('telegramChatId').value.trim();
+    const error=document.getElementById('telegramError'); const success=document.getElementById('telegramSuccess');
+    error.className='alert'; success.className='alert';
+    const button=document.getElementById('telegramSaveBtn'); button.disabled=true; button.innerHTML='<span class="spinner"></span> Conectando...';
+    try{
+      const res=await fetch('/admin/api/integrations/telegram',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({botToken:token,chatId})});
+      const data=await res.json();
+      if(data.success){
+        success.textContent=`Bot conectado. Webhook activo en ${data.webhookUrl}`;
+        success.className='alert alert-success show';
+        document.getElementById('telegramToken').value='';
+        await loadTelegram();
+      } else { error.textContent=data.error||'No se pudo conectar Telegram.'; error.className='alert alert-error show'; }
+    }catch(e){ error.textContent='Error de conexión.'; error.className='alert alert-error show'; }
+    button.disabled=false; button.innerHTML='<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg>Guardar y conectar webhook';
+  }
+
   function showTab(tab,btn){
-    ['tabPending','tabStudents','tabTalonarios'].forEach(t=>document.getElementById(t).style.display='none');
+    ['tabPending','tabStudents','tabTalonarios','tabTelegram'].forEach(t=>document.getElementById(t).style.display='none');
     document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='block';
     document.querySelectorAll('.tab-btn,.sidebar nav a[id^="nav"]').forEach(b=>b.classList.remove('active'));
     if(btn) btn.classList.add('active');
     if(tab==='students') loadStudents();
     if(tab==='talonarios') loadTalonarios();
+    if(tab==='telegram') loadTelegram();
   }
 
   loadData();

@@ -6,6 +6,8 @@ const { requireAdmin, requireRole } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const { calcDebt, PLAN_NAMES } = require('../lib/helpers');
 const { processPaymentDecision } = require('../lib/paymentActions');
+const { getTelegramConfig, saveTelegramConfig, setWebhook } = require('../lib/telegram');
+const crypto = require('crypto');
 const path = require('path');
 
 // ── Login ─────────────────────────────────────────────────────
@@ -105,6 +107,35 @@ router.post('/api/admin-users', requireRole('owner'), async (req, res) => {
   if (!email || !password || !['owner','manager','viewer'].includes(role)) return res.status(400).json({ error: 'Datos de usuario inválidos' });
   try { await pool.query('INSERT INTO admin_users (id,email,password_hash,role) VALUES (?,?,?,?)', [uuidv4(), email.toLowerCase(), await bcrypt.hash(password, 12), role]); res.json({ success: true }); }
   catch (_) { res.status(400).json({ error: 'No se pudo crear el usuario.' }); }
+});
+
+// ── Integración Telegram ──────────────────────────────────────
+router.get('/api/integrations/telegram', requireRole('owner'), async (req, res) => {
+  const telegram = await getTelegramConfig();
+  res.json({
+    configured: Boolean(telegram.botToken && telegram.chatId),
+    chatId: telegram.chatId,
+    tokenHint: telegram.botToken ? `••••${telegram.botToken.slice(-6)}` : '',
+    webhookUrl: process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, '')}/api/telegram/webhook` : ''
+  });
+});
+
+router.put('/api/integrations/telegram', requireRole('owner'), async (req, res) => {
+  const { botToken, chatId } = req.body;
+  const current = await getTelegramConfig();
+  const token = (botToken || '').trim() || current.botToken;
+  const targetChatId = (chatId || '').trim() || current.chatId;
+  if (!token || !targetChatId) return res.status(400).json({ error: 'Ingresa el token del bot y el Chat ID de Telegram.' });
+
+  const webhookSecret = current.webhookSecret || crypto.randomBytes(32).toString('hex');
+  const config = { botToken: token, chatId: targetChatId, webhookSecret };
+  await saveTelegramConfig(config);
+  try {
+    const webhook = await setWebhook(config);
+    res.json({ success: true, webhookUrl: webhook.url });
+  } catch (error) {
+    res.status(400).json({ error: `Configuración guardada, pero Telegram no aceptó el webhook: ${error.message}` });
+  }
 });
 
 // ────────────────────────────────────────────────────────────
