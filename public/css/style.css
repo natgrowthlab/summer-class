@@ -99,6 +99,10 @@ p  { color: var(--text-2); font-size: 14px; line-height: 1.6; }
 .logo-img { height: 38px; width: auto; display: block; }
 .brand-logo-img { height: 96px; width: auto; display: block; margin: 0 auto; }
 .sidebar-logo-img { height: 34px; width: auto; display: block; }
+.ui-icon { width: 1.2em; height: 1.2em; display: inline-block; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.2em; }
+.ui-icon-lg { width: 1.5em; height: 1.5em; }
+.ui-icon-xl { width: 2.25rem; height: 2.25rem; }
+.icon-chip { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 14px; color: var(--cyan); background: rgba(14,165,233,.14); border: 1px solid rgba(14,165,233,.28); }
 .topbar-link { font-size: 13px; color: var(--text-2); text-decoration: none; padding: 6px 12px; border-radius: 100px; transition: color .15s; font-family: var(--font-body); }
 .topbar-link:hover { color: var(--text); }
 
@@ -189,7 +193,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 
 .upload-zone { border: 1.5px dashed var(--glass-border); border-radius: var(--radius-md); padding: 28px 20px; text-align: center; cursor: pointer; background: rgba(14,165,233,0.03); transition: all .15s; }
 .upload-zone:hover, .upload-zone.active { border-color: var(--blue-1); background: var(--glass-bg); }
-.upload-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+.upload-zone .icon { color: var(--cyan); margin-bottom: 8px; line-height: 1; }
 .upload-zone strong { color: var(--cyan); }
 
 .alert { padding: 11px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; margin-bottom: 14px; display: none; border: 1px solid transparent; font-family: var(--font-body); }

@@ -49,13 +49,13 @@
   <div id="mainContent" style="display:none;" class="fade-in">
     <div class="container" style="padding-top:22px;padding-bottom:56px;">
       <div style="margin-bottom:18px;">
-        <p style="font-size:13px;color:var(--text-3);margin-bottom:2px;">Bienvenido 👋</p>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:2px;">Bienvenido</p>
         <h2 id="studentName" style="letter-spacing:-.5px;">Mi Dashboard</h2>
       </div>
 
       <div id="noEnrollment" style="display:none;">
         <div class="card" style="text-align:center;padding:40px 24px;">
-          <div style="font-size:2.5rem;margin-bottom:14px;">📋</div>
+          <div class="icon-chip" style="margin:0 auto 14px;"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#clipboard"/></svg></div>
           <h3 style="margin-bottom:8px;">Sin plan activo</h3>
           <p style="margin-bottom:24px;">Elige tu destino para comenzar</p>
           <a href="/select-plan" class="btn btn-primary" style="display:inline-flex;width:auto;padding:12px 28px;">Elegir mi plan →</a>
@@ -141,7 +141,7 @@
   <script>
     const fmtCOP=n=>'$'+Number(n).toLocaleString('es-CO');
     const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
-    const planNames={san_andres:'🏝 San Andrés',costa_atlantica:'🌊 Costa Atlántica'};
+    const planNames={san_andres:'San Andrés',costa_atlantica:'Costa Atlántica'};
     const statusLabels={pending:'Pendiente',approved:'Aprobado',rejected:'Rechazado'};
 
     async function load(){

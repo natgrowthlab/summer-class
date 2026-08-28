@@ -56,7 +56,7 @@ async function start() {
   if (process.env.APP_URL && process.env.TELEGRAM_BOT_TOKEN) {
     await setWebhook();
   }
-  if (!process.env.VERCEL) app.listen(PORT, () => console.log(`🚀 Summer Class corriendo en puerto ${PORT}`));
+  if (!process.env.VERCEL) app.listen(PORT, () => console.log(`Summer Class corriendo en puerto ${PORT}`));
 }
 
 if (!process.env.VERCEL) start().catch(err => { console.error('❌ Error al iniciar:', err.message); process.exit(1); });

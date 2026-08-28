@@ -18,7 +18,7 @@
     .pactions{display:flex;gap:8px;margin-top:10px;}
     .receipt-link{font-size:12px;color:var(--cyan);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:5px;}
     .empty{text-align:center;padding:50px 20px;}
-    .empty-icon{font-size:2.5rem;margin-bottom:10px;}
+    .empty-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;color:var(--success);}
     .talonario-form{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;}
     .talonario-row{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
     .talonario-num{font-weight:800;font-size:14px;font-family:var(--font-title);}
@@ -36,9 +36,9 @@
   <aside class="sidebar">
     <a href="/admin" class="sidebar-logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="sidebar-logo-img"></a>
     <nav>
-      <a href="#" onclick="showTab('pending',this)" class="active" id="nav-pending">⏳ Pendientes</a>
-      <a href="#" onclick="showTab('students',this)" id="nav-students">👥 Estudiantes</a>
-      <a href="#" onclick="showTab('talonarios',this)" id="nav-talonarios">🎟 Bonos de Apoyo</a>
+      <a href="#" onclick="showTab('pending',this)" class="active" id="nav-pending"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg>Pendientes</a>
+      <a href="#" onclick="showTab('students',this)" id="nav-students"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg>Estudiantes</a>
+      <a href="#" onclick="showTab('talonarios',this)" id="nav-talonarios"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg>Bonos de Apoyo</a>
       <a href="/admin/logout" style="margin-top:16px;color:var(--text-3)!important;font-size:12px;">← Salir</a>
     </nav>
   </aside>
@@ -56,9 +56,9 @@
     </div>
 
     <div class="tab-nav">
-      <button class="tab-btn active" onclick="showTab('pending',this)">⏳ Pendientes</button>
-      <button class="tab-btn" onclick="showTab('students',this)">👥 Estudiantes</button>
-      <button class="tab-btn" onclick="showTab('talonarios',this)">🎟 Bonos</button>
+      <button class="tab-btn active" onclick="showTab('pending',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg> Pendientes</button>
+      <button class="tab-btn" onclick="showTab('students',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg> Estudiantes</button>
+      <button class="tab-btn" onclick="showTab('talonarios',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg> Bonos</button>
     </div>
 
     <div id="tabPending"><div class="empty"><p>Cargando...</p></div></div>
@@ -100,7 +100,7 @@
 <script>
   const fmtCOP=n=>'$'+Number(n).toLocaleString('es-CO');
   const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short'});
-  const planNames={san_andres:'San Andrés 🏝',costa_atlantica:'Costa Atlántica 🌊'};
+  const planNames={san_andres:'San Andrés',costa_atlantica:'Costa Atlántica'};
   const methodNames={cuotas:'Cuotas',total:'Total',talonario:'Talonario'};
 
   async function loadData(){
@@ -116,7 +116,7 @@
 
   function renderPending(payments){
     const c=document.getElementById('tabPending');
-    if(!payments.length){c.innerHTML='<div class="empty"><div class="empty-icon">✅</div><p>No hay pagos pendientes</p></div>';return;}
+    if(!payments.length){c.innerHTML='<div class="empty"><div class="empty-icon"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#check-circle"/></svg></div><p>No hay pagos pendientes</p></div>';return;}
     c.innerHTML=payments.map(p=>`
       <div class="pitem" id="payment-${p.id}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
@@ -127,7 +127,7 @@
             ${p.payment_type==='talonario'?'<span class="badge badge-blue" style="margin-top:4px;">Pago de Talonario</span>':''}
             <div class="psub" style="margin-top:4px;">Acumulado: ${fmtCOP(p.amount_paid)} / ${fmtCOP(p.total_cost)}</div>
             <div class="psub">${fmtDate(p.created_at)}</div>
-            ${p.receipt_url?`<a href="${p.receipt_url}" target="_blank" class="receipt-link">📎 Ver comprobante</a>`:'<span style="font-size:11px;color:var(--text-3);">Sin comprobante</span>'}
+            ${p.receipt_url?`<a href="${p.receipt_url}" target="_blank" class="receipt-link"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#paperclip"/></svg>Ver comprobante</a>`:'<span style="font-size:11px;color:var(--text-3);">Sin comprobante</span>'}
           </div>
           <div style="flex-shrink:0;text-align:right;">
             <div class="pamt">${fmtCOP(p.amount)}</div>
@@ -135,8 +135,8 @@
           </div>
         </div>
         <div class="pactions">
-          <button class="btn btn-success btn-sm" onclick="action('${p.id}','approve')">✅ Aprobar</button>
-          <button class="btn btn-danger btn-sm" onclick="action('${p.id}','reject')">❌ Rechazar</button>
+          <button class="btn btn-success btn-sm" onclick="action('${p.id}','approve')"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check-circle"/></svg>Aprobar</button>
+          <button class="btn btn-danger btn-sm" onclick="action('${p.id}','reject')">Rechazar</button>
         </div>
       </div>`).join('');
   }
@@ -149,8 +149,8 @@
       document.getElementById(`payment-${id}`)?.remove();
       const count=document.querySelectorAll('[id^="payment-"]').length;
       document.getElementById('statPending').textContent=count;
-      if(!count) document.getElementById('tabPending').innerHTML='<div class="empty"><div class="empty-icon">✅</div><p>No hay pagos pendientes</p></div>';
-      if(data.ticketAssigned) alert(`✅ Talonario #${data.ticketAssigned} asignado automáticamente a ${data.studentName}`);
+      if(!count) document.getElementById('tabPending').innerHTML='<div class="empty"><div class="empty-icon"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#check-circle"/></svg></div><p>No hay pagos pendientes</p></div>';
+      if(data.ticketAssigned) alert(`Talonario #${data.ticketAssigned} asignado automáticamente a ${data.studentName}`);
       loadData();
     } else if(data.error) {
       alert('Error: '+data.error);

@@ -6,16 +6,15 @@
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .plans-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
-    .plan-emoji { font-size:2rem; margin-bottom:8px; }
+    .plan-emoji { color:var(--cyan); margin-bottom:10px; line-height:1; }
     .plan-name  { font-size:.95rem; font-weight:700; margin-bottom:4px; font-family:var(--font-title); }
     .plan-sub   { font-size:11px; color:var(--text-3); margin-bottom:8px; }
     .plan-feat  { margin-top:8px; }
-    .method-icon { font-size:1.3rem; flex-shrink:0; }
+    .method-icon, .topt-icon { color:var(--cyan); flex-shrink:0; line-height:1; }
     .talonario-opts { display:none; margin-top:12px; gap:10px; flex-direction:column; animation:fadeUp .3s ease; }
     .talonario-opts.show { display:flex; }
     .topt { display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md); cursor:pointer; text-decoration:none; transition:all .15s; }
     .topt:hover { border-color:var(--glass-border-2); background:var(--glass-bg-2); transform:translateY(-1px); }
-    .topt-icon { font-size:1.4rem; }
     .topt-title { font-weight:700; font-size:14px; color:var(--text); font-family:var(--font-title); }
     .topt-sub   { font-size:12px; color:var(--text-2); margin-top:1px; }
     @media(max-width:400px){ .plans-grid{grid-template-columns:1fr;} }
@@ -41,14 +40,14 @@
     <div class="section-label">Destino</div>
     <div class="plans-grid">
       <div class="plan-card" onclick="selectPlan('san_andres',this)">
-        <div class="plan-emoji">🏝</div>
+        <div class="plan-emoji"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#sun"/></svg></div>
         <div class="plan-name">San Andrés</div>
         <div class="plan-price" id="price-san_andres">$3.200.000</div>
         <div class="plan-sub">5 días 4 noches</div>
         <ul class="plan-feat"><li>Vuelos incluidos</li><li>Hospedaje</li><li>Alimentación buffet</li><li>Fiestas y tours</li></ul>
       </div>
       <div class="plan-card" onclick="selectPlan('costa_atlantica',this)">
-        <div class="plan-emoji">🌊</div>
+        <div class="plan-emoji"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#waves"/></svg></div>
         <div class="plan-name">Costa Atlántica</div>
         <div class="plan-price" id="price-costa_atlantica">$2.800.000</div>
         <div class="plan-sub">9 días</div>
@@ -59,28 +58,28 @@
     <div class="section-label">Método de pago</div>
     <label class="method-option" onclick="selectMethod('cuotas',this)">
       <input type="radio" name="method" value="cuotas">
-      <span class="method-icon">💳</span>
+      <span class="method-icon"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#credit-card"/></svg></span>
       <div><div class="method-name">Abonos / Cuotas</div><div class="method-desc">Paga en partes hasta completar el total</div></div>
     </label>
     <label class="method-option" onclick="selectMethod('total',this)">
       <input type="radio" name="method" value="total">
-      <span class="method-icon">✅</span>
+      <span class="method-icon"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#check-circle"/></svg></span>
       <div><div class="method-name">Pago Total</div><div class="method-desc">Un solo comprobante por el valor completo</div></div>
     </label>
     <label class="method-option" id="talonarioOption" onclick="selectMethod('talonario',this)">
       <input type="radio" name="method" value="talonario">
-      <span class="method-icon">🎟</span>
+      <span class="method-icon"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg></span>
       <div><div class="method-name">Bono de Apoyo (Talonario)</div><div class="method-desc" id="talonarioDesc">Vende bonos para financiar tu excursión · $10.000 el talonario</div></div>
     </label>
 
     <div class="talonario-opts" id="talonarioOpts">
       <a href="/talonario-pago" class="topt" id="btnPagarTalonario">
-        <span class="topt-icon">💸</span>
+        <span class="topt-icon"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#banknote"/></svg></span>
         <div><div class="topt-title">Pagar mi talonario</div><div class="topt-sub">Sube el comprobante</div></div>
         <span style="margin-left:auto;color:var(--text-3);font-size:16px;">›</span>
       </a>
       <div class="topt" onclick="mostrarFormTalonario()">
-        <span class="topt-icon">🔢</span>
+        <span class="topt-icon"><svg class="ui-icon ui-icon-lg" aria-hidden="true"><use href="/assets/icons.svg#hash"/></svg></span>
         <div><div class="topt-title">Ya pagué mi talonario</div><div class="topt-sub">Ingresa tu número y activa tu cuenta</div></div>
         <span style="margin-left:auto;color:var(--text-3);font-size:16px;">›</span>
       </div>

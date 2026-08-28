@@ -53,7 +53,7 @@
     <div class="form-group">
       <label>Comprobante de pago · <strong style="color:var(--cyan);" id="amountToTransfer">$10.000</strong></label>
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('receiptFile').click()">
-        <div class="icon">📷</div>
+        <div class="icon"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#upload"/></svg></div>
         <p><strong>Toca para subir</strong> el comprobante</p>
         <p style="font-size:11px;margin-top:4px;">Máximo 5MB · JPG, PNG, PDF</p>
       </div>
@@ -61,7 +61,7 @@
       <img id="previewImg" class="preview-img" alt="Vista previa">
     </div>
 
-    <div class="notice"><span>⏳</span><span>Tu pago quedará <strong style="color:var(--warning);">Pendiente</strong>. Cuando el admin lo apruebe, recibirás tu talonario con los bonos asignados automáticamente.</span></div>
+    <div class="notice"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg><span>Tu pago quedará <strong style="color:var(--warning);">Pendiente</strong>. Cuando el admin lo apruebe, recibirás tu talonario con los bonos asignados automáticamente.</span></div>
     <button class="btn btn-primary" id="submitBtn" onclick="submit()">Enviar a verificación →</button>
   </div>
   <script>
@@ -81,7 +81,7 @@
         const plan = planKey || 'costa_atlantica';
         const planConfig = tConfig[plan] || tConfig.costa_atlantica;
         studentPrice = planConfig.student_price;
-        const planNames = { san_andres: '🏝 San Andrés Islas', costa_atlantica: '🌊 Costa Atlántica' };
+        const planNames = { san_andres: 'San Andrés Islas', costa_atlantica: 'Costa Atlántica' };
         document.getElementById('planLabel').textContent = planNames[plan] || 'Talonario';
         document.getElementById('studentPrice').textContent = '$' + studentPrice.toLocaleString('es-CO');
         document.getElementById('amountToTransfer').textContent = '$' + studentPrice.toLocaleString('es-CO');
@@ -98,7 +98,7 @@
       const file = input.files[0]; if (!file) return;
       selectedFile = file;
       const z = document.getElementById('uploadZone'); z.classList.add('active');
-      z.innerHTML = `<div class="icon">✅</div><p><strong style="color:var(--cyan)">${file.name}</strong></p><p style="font-size:11px;margin-top:4px;">${(file.size/1024).toFixed(0)} KB</p>`;
+      z.innerHTML = `<div class="icon"><svg class="ui-icon ui-icon-xl" aria-hidden="true"><use href="/assets/icons.svg#check-circle"/></svg></div><p><strong style="color:var(--cyan)">${file.name}</strong></p><p style="font-size:11px;margin-top:4px;">${(file.size/1024).toFixed(0)} KB</p>`;
       if (file.type.startsWith('image/')) {
         const r = new FileReader();
         r.onload = e => { const img = document.getElementById('previewImg'); img.src = e.target.result; img.style.display = 'block'; };
