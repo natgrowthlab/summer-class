@@ -106,10 +106,19 @@ router.get('/api/export/students.csv', requireAdmin, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.attachment('estudiantes-summer-class.csv'); res.send('\uFEFF' + csv);
 });
 
+router.delete('/api/students/:id', requireRole('owner'), async (req, res) => {
+  const [students] = await pool.query('SELECT id,first_name,last_name FROM students WHERE id=?', [req.params.id]);
+  if (!students.length) return res.status(404).json({ error: 'Estudiante no encontrado.' });
+  // Preserve the talonario catalog, but make any assigned ticket available again.
+  await pool.query('UPDATE talonario_catalog SET is_assigned=FALSE,assigned_to=NULL,assigned_at=NULL WHERE assigned_to=?', [req.params.id]);
+  await pool.query('DELETE FROM students WHERE id=?', [req.params.id]);
+  res.json({ success: true, studentName: `${students[0].first_name} ${students[0].last_name}` });
+});
+
 router.get('/api/admin-users', requireRole('owner'), async (req, res) => { const [users] = await pool.query('SELECT id,email,role,created_at FROM admin_users ORDER BY created_at'); res.json({ users }); });
 router.post('/api/admin-users', requireRole('owner'), async (req, res) => {
   const { email, password, role } = req.body;
-  if (!email || !password || !['owner','manager','viewer'].includes(role)) return res.status(400).json({ error: 'Datos de usuario inválidos' });
+  if (!email || !password || password.length < 8 || !['owner','manager','viewer'].includes(role)) return res.status(400).json({ error: 'Datos de usuario inválidos' });
   try { await pool.query('INSERT INTO admin_users (id,email,password_hash,role) VALUES (?,?,?,?)', [uuidv4(), email.toLowerCase(), await bcrypt.hash(password, 12), role]); res.json({ success: true }); }
   catch (_) { res.status(400).json({ error: 'No se pudo crear el usuario.' }); }
 });
@@ -136,7 +145,7 @@ router.put('/api/integrations/telegram', requireRole('owner'), async (req, res) 
   const config = { botToken: token, chatId: targetChatId, webhookSecret };
   await saveTelegramConfig(config);
   try {
-    const webhook = await setWebhook(config);
+    const webhook = await setWebhook(config, { notify: true });
     res.json({ success: true, webhookUrl: webhook.url });
   } catch (error) {
     res.status(400).json({ error: `Configuración guardada, pero Telegram no aceptó el webhook: ${error.message}` });

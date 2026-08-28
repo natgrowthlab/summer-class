@@ -39,6 +39,7 @@
       <a href="#" onclick="showTab('pending',this)" class="active" id="nav-pending"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg>Pendientes</a>
       <a href="#" onclick="showTab('students',this)" id="nav-students"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg>Estudiantes</a>
       <a href="#" onclick="showTab('talonarios',this)" id="nav-talonarios"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg>Bonos de Apoyo</a>
+      <a href="#" onclick="showTab('admins',this)" id="nav-admins"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#shield"/></svg>Administradores</a>
       <a href="#" onclick="showTab('telegram',this)" id="nav-telegram"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg>Telegram</a>
       <a href="/admin/logout" style="margin-top:16px;color:var(--text-3)!important;font-size:12px;">← Salir</a>
     </nav>
@@ -60,6 +61,7 @@
       <button class="tab-btn active" onclick="showTab('pending',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"/></svg> Pendientes</button>
       <button class="tab-btn" onclick="showTab('students',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg> Estudiantes</button>
       <button class="tab-btn" onclick="showTab('talonarios',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#ticket"/></svg> Bonos</button>
+      <button class="tab-btn" onclick="showTab('admins',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#shield"/></svg> Admins</button>
       <button class="tab-btn" onclick="showTab('telegram',this)"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#send"/></svg> Telegram</button>
     </div>
 
@@ -68,8 +70,8 @@
     <div id="tabStudents" style="display:none;">
       <div class="card" style="padding:0;overflow:hidden;">
         <table class="glass-table">
-          <thead><tr><th>Estudiante</th><th>Colegio</th><th>Plan</th><th>Método</th><th>Pagado</th><th>Talonario</th></tr></thead>
-          <tbody id="studentsBody"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-2);">Cargando...</td></tr></tbody>
+          <thead><tr><th>Estudiante</th><th>Colegio</th><th>Plan</th><th>Método</th><th>Pagado</th><th>Talonario</th><th></th></tr></thead>
+          <tbody id="studentsBody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-2);">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -95,6 +97,20 @@
 
       <div class="section-label">Talonarios en el sistema</div>
       <div id="talonariosList"><p style="color:var(--text-2);font-size:13px;">Cargando...</p></div>
+    </div>
+
+    <div id="tabAdmins" style="display:none;">
+      <div class="card" style="max-width:560px;margin-bottom:18px;">
+        <div class="section-label">Nuevo administrador</div>
+        <div class="alert alert-error" id="adminUserError"></div>
+        <div class="alert alert-success" id="adminUserSuccess"></div>
+        <div class="form-group"><label for="newAdminEmail">Correo</label><input type="email" id="newAdminEmail" autocomplete="email" placeholder="admin@ejemplo.com"></div>
+        <div class="form-group"><label for="newAdminPassword">Contraseña temporal</label><input type="password" id="newAdminPassword" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></div>
+        <div class="form-group"><label for="newAdminRole">Rol</label><select id="newAdminRole"><option value="manager">Administrador</option><option value="viewer">Solo lectura</option><option value="owner">Propietario</option></select></div>
+        <button class="btn btn-primary" onclick="createAdminUser()"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#users"/></svg>Agregar administrador</button>
+      </div>
+      <div class="section-label">Administradores actuales</div>
+      <div id="adminUsersList"><p style="font-size:13px;color:var(--text-2);">Cargando...</p></div>
     </div>
 
     <div id="tabTelegram" style="display:none;">
@@ -186,8 +202,31 @@
         <td style="font-size:12px;">${s.payment_method?methodNames[s.payment_method]:'—'}</td>
         <td style="font-weight:600;">${s.amount_paid?fmtCOP(s.amount_paid):'—'}</td>
         <td>${s.talonario_number?`<span class="badge badge-approved">#${s.talonario_number}</span>`:'—'}</td>
+        <td><button class="btn btn-danger btn-xs" onclick="deleteStudent('${s.id}','${String(s.first_name).replace(/'/g,"\\'")} ${String(s.last_name).replace(/'/g,"\\'")}')">Eliminar</button></td>
       </tr>`;
     }).join('');
+  }
+
+  async function deleteStudent(id,name){
+    if(!confirm(`¿Eliminar permanentemente a ${name}? También se eliminarán sus inscripciones y pagos.`)) return;
+    const res=await fetch(`/admin/api/students/${id}`,{method:'DELETE'}); const data=await res.json();
+    if(data.success) await loadStudents(); else alert(data.error||'No se pudo eliminar el estudiante.');
+  }
+
+  async function loadAdminUsers(){
+    const res=await fetch('/admin/api/admin-users'); const data=await res.json();
+    const list=document.getElementById('adminUsersList');
+    if(!data.users){ list.innerHTML='<p style="font-size:13px;color:var(--danger);">No tienes permiso para administrar usuarios.</p>'; return; }
+    list.innerHTML=data.users.map(user=>`<div class="talonario-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div class="talonario-num">${user.email}</div><div style="font-size:11px;color:var(--text-3);margin-top:3px;">Creado ${fmtDate(user.created_at)}</div></div><span class="badge ${user.role==='owner'?'badge-approved':'badge-blue'}">${user.role}</span></div>`).join('');
+  }
+
+  async function createAdminUser(){
+    const email=document.getElementById('newAdminEmail').value.trim(); const password=document.getElementById('newAdminPassword').value; const role=document.getElementById('newAdminRole').value;
+    const error=document.getElementById('adminUserError'); const success=document.getElementById('adminUserSuccess'); error.className='alert'; success.className='alert';
+    if(!email||password.length<8){ error.textContent='Ingresa un correo y una contraseña de al menos 8 caracteres.'; error.className='alert alert-error show'; return; }
+    const res=await fetch('/admin/api/admin-users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password,role})}); const data=await res.json();
+    if(data.success){ success.textContent=`Administrador ${email} creado.`; success.className='alert alert-success show'; document.getElementById('newAdminEmail').value=''; document.getElementById('newAdminPassword').value=''; await loadAdminUsers(); }
+    else { error.textContent=data.error||'No se pudo crear el administrador.'; error.className='alert alert-error show'; }
   }
 
   async function loadTalonarios(){
@@ -298,12 +337,13 @@
   }
 
   function showTab(tab,btn){
-    ['tabPending','tabStudents','tabTalonarios','tabTelegram'].forEach(t=>document.getElementById(t).style.display='none');
+    ['tabPending','tabStudents','tabTalonarios','tabAdmins','tabTelegram'].forEach(t=>document.getElementById(t).style.display='none');
     document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='block';
     document.querySelectorAll('.tab-btn,.sidebar nav a[id^="nav"]').forEach(b=>b.classList.remove('active'));
     if(btn) btn.classList.add('active');
     if(tab==='students') loadStudents();
     if(tab==='talonarios') loadTalonarios();
+    if(tab==='admins') loadAdminUsers();
     if(tab==='telegram') loadTelegram();
   }
 
