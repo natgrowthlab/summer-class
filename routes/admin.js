@@ -20,8 +20,13 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = (email || '').toLowerCase();
   const [users] = await pool.query('SELECT * FROM admin_users WHERE email=?', [normalizedEmail]);
-  if (!users.length && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD && normalizedEmail === process.env.ADMIN_EMAIL.toLowerCase() && password === process.env.ADMIN_PASSWORD) {
-    await pool.query('INSERT INTO admin_users (id,email,password_hash,role) VALUES (?,?,?,?)', [uuidv4(), normalizedEmail, await bcrypt.hash(password, 12), 'owner']);
+  const isBootstrapOwner = process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD && normalizedEmail === process.env.ADMIN_EMAIL.toLowerCase() && password === process.env.ADMIN_PASSWORD;
+  if (isBootstrapOwner) {
+    if (!users.length) {
+      await pool.query('INSERT INTO admin_users (id,email,password_hash,role) VALUES (?,?,?,?)', [uuidv4(), normalizedEmail, await bcrypt.hash(password, 12), 'owner']);
+    } else if (users[0].role !== 'owner') {
+      await pool.query('UPDATE admin_users SET role=? WHERE email=?', ['owner', normalizedEmail]);
+    }
     req.session.adminUser = { email: normalizedEmail, role: 'owner' };
     return res.json({ success: true, redirect: '/admin' });
   }
