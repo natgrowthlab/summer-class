@@ -7,11 +7,15 @@ const { setWebhook } = require('./lib/telegram');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Each serverless instance waits for the schema before its session middleware
+// queries PostgreSQL (important on the first request after a deployment).
+const databaseReady = initDB();
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(async (req, res, next) => { try { await databaseReady; next(); } catch (error) { next(error); } });
 
 class PostgresSessionStore extends session.Store {
   get(sid, cb) { pool.query('SELECT sess FROM sessions WHERE sid=? AND expire>CURRENT_TIMESTAMP', [sid]).then(([rows]) => cb(null, rows[0]?.sess)).catch(cb); }
@@ -48,7 +52,7 @@ app.use((err, req, res, next) => {
 
 // ── Iniciar ──────────────────────────────────────────────────
 async function start() {
-  await initDB();
+  await databaseReady;
   if (process.env.APP_URL && process.env.TELEGRAM_BOT_TOKEN) {
     await setWebhook();
   }
