@@ -34,10 +34,24 @@ router.post('/payments', requireStudent, upload.single('receipt'), async (req, r
 
   let receiptUrl = null;
   if (req.file) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: 'El almacenamiento de comprobantes aún no está configurado.' });
-    const ext = req.file.originalname.split('.').pop().replace(/[^a-z0-9]/gi, '');
-    const blob = await put(`receipts/${req.session.studentId}/${uuidv4()}.${ext}`, req.file.buffer, { access: 'public', contentType: req.file.mimetype, addRandomSuffix: true });
-    receiptUrl = blob.url;
+    try {
+      const ext = req.file.originalname.split('.').pop().replace(/[^a-z0-9]/gi, '');
+      const blob = await put(
+        `receipts/${req.session.studentId}/${uuidv4()}.${ext}`,
+        req.file.buffer,
+        {
+          access: 'public',
+          contentType: req.file.mimetype,
+          addRandomSuffix: true,
+          // Vercel supplies an OIDC credential to linked Blob stores in production.
+          ...(process.env.BLOB_STORE_ID ? { storeId: process.env.BLOB_STORE_ID } : {})
+        }
+      );
+      receiptUrl = blob.url;
+    } catch (error) {
+      console.error('Receipt upload failed:', error.message);
+      return res.status(503).json({ error: 'No fue posible guardar el comprobante. Inténtalo nuevamente en unos minutos.' });
+    }
   }
 
   const [studentRows] = await pool.query('SELECT * FROM students WHERE id = ?', [req.session.studentId]);
