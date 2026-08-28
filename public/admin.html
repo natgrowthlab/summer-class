@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Admin — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .admin-layout{display:grid;grid-template-columns:210px 1fr;min-height:100vh;}
+    .main-area{padding:26px 22px;overflow-y:auto;}
+    .page-title{font-size:1.2rem;font-weight:800;letter-spacing:-.3px;margin-bottom:4px;font-family:var(--font-title);}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:22px;}
+    .pitem{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:10px;transition:border-color .15s;}
+    .pitem:hover{border-color:var(--glass-border-2);}
+    .pname{font-weight:700;font-size:14px;font-family:var(--font-title);}
+    .psub{font-size:11px;color:var(--text-2);margin-top:2px;}
+    .pamt{font-size:1.2rem;font-weight:800;color:var(--cyan);font-family:var(--font-title);}
+    .pamtsub{font-size:10px;color:var(--text-3);}
+    .pactions{display:flex;gap:8px;margin-top:10px;}
+    .receipt-link{font-size:12px;color:var(--cyan);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:5px;}
+    .empty{text-align:center;padding:50px 20px;}
+    .empty-icon{font-size:2.5rem;margin-bottom:10px;}
+    .talonario-form{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;}
+    .talonario-row{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
+    .talonario-num{font-weight:800;font-size:14px;font-family:var(--font-title);}
+    .input-row{display:flex;gap:8px;align-items:flex-end;}
+    .input-row input{flex:1;}
+    .bulk-area{background:rgba(14,165,233,.04);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:14px;margin-top:12px;}
+    @media(max-width:680px){.admin-layout{grid-template-columns:1fr;}.sidebar{display:none;}}
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar">
+    <a href="/admin" class="sidebar-logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="sidebar-logo-img"></a>
+    <nav>
+      <a href="#" onclick="showTab('pending',this)" class="active" id="nav-pending">⏳ Pendientes</a>
+      <a href="#" onclick="showTab('students',this)" id="nav-students">👥 Estudiantes</a>
+      <a href="#" onclick="showTab('talonarios',this)" id="nav-talonarios">🎟 Bonos de Apoyo</a>
+      <a href="/admin/logout" style="margin-top:16px;color:var(--text-3)!important;font-size:12px;">← Salir</a>
+    </nav>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-title">Panel de administración</div>
+    <p style="margin-bottom:12px;font-size:12px;">Summer Class · Chinchiná</p>
+    <a class="btn btn-outline btn-sm" style="width:auto;margin-bottom:18px;" href="/admin/api/export/students.csv">Descargar reporte CSV</a>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="statStudents">—</div><div class="stat-label">Estudiantes</div></div>
+      <div class="stat-card"><div class="stat-value" id="statPending" style="color:var(--warning);">—</div><div class="stat-label">Pendientes</div></div>
+      <div class="stat-card"><div class="stat-value" id="statApproved" style="color:var(--success);">—</div><div class="stat-label">Aprobados</div></div>
+      <div class="stat-card"><div class="stat-value" id="statTotal">—</div><div class="stat-label">Recaudado</div></div>
+    </div>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="showTab('pending',this)">⏳ Pendientes</button>
+      <button class="tab-btn" onclick="showTab('students',this)">👥 Estudiantes</button>
+      <button class="tab-btn" onclick="showTab('talonarios',this)">🎟 Bonos</button>
+    </div>
+
+    <div id="tabPending"><div class="empty"><p>Cargando...</p></div></div>
+
+    <div id="tabStudents" style="display:none;">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="glass-table">
+          <thead><tr><th>Estudiante</th><th>Colegio</th><th>Plan</th><th>Método</th><th>Pagado</th><th>Talonario</th></tr></thead>
+          <tbody id="studentsBody"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-2);">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tabTalonarios" style="display:none;">
+      <div class="talonario-form">
+        <div class="section-label">Agregar talonario manualmente</div>
+        <div class="alert alert-error" id="talonarioAlert"></div>
+        <div class="alert alert-success" id="talonarioSuccess"></div>
+        <div class="input-row" style="margin-bottom:10px;">
+          <div class="form-group" style="margin:0;flex:0 0 120px;"><label># Talonario</label><input type="number" id="newTicketNum" placeholder="231" min="1"></div>
+          <div class="form-group" style="margin:0;flex:1;"><label>Números de bonos (separados por coma)</label><input type="text" id="newBonosNums" placeholder="3911, 1039, 4103"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="width:auto;" onclick="createTalonario()">+ Agregar talonario</button>
+
+        <div class="bulk-area">
+          <div class="section-label" style="margin-bottom:8px;">Importar desde Excel / JSON</div>
+          <p style="font-size:12px;margin-bottom:10px;">Pega el JSON con el formato: <code style="color:var(--cyan);font-size:11px;">[{"ticket_number":231,"bonos":[3911,1039,4103]},...]</code></p>
+          <textarea id="bulkJson" rows="4" placeholder='[{"ticket_number":231,"bonos":[3911,1039,4103]}]' style="font-size:12px;font-family:monospace;"></textarea>
+          <button class="btn btn-outline btn-sm" style="width:auto;margin-top:8px;" onclick="importBulk()">Importar JSON</button>
+        </div>
+      </div>
+
+      <div class="section-label">Talonarios en el sistema</div>
+      <div id="talonariosList"><p style="color:var(--text-2);font-size:13px;">Cargando...</p></div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const fmtCOP=n=>'$'+Number(n).toLocaleString('es-CO');
+  const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short'});
+  const planNames={san_andres:'San Andrés 🏝',costa_atlantica:'Costa Atlántica 🌊'};
+  const methodNames={cuotas:'Cuotas',total:'Total',talonario:'Talonario'};
+
+  async function loadData(){
+    const res=await fetch('/admin/api/summary');
+    if(res.status===401||res.redirected){window.location.href='/admin/login';return;}
+    const data=await res.json();
+    document.getElementById('statStudents').textContent=data.totalStudents;
+    document.getElementById('statPending').textContent=data.pendingPayments.length;
+    document.getElementById('statApproved').textContent=data.approvedPayments;
+    document.getElementById('statTotal').textContent=fmtCOP(data.totalCollected);
+    renderPending(data.pendingPayments);
+  }
+
+  function renderPending(payments){
+    const c=document.getElementById('tabPending');
+    if(!payments.length){c.innerHTML='<div class="empty"><div class="empty-icon">✅</div><p>No hay pagos pendientes</p></div>';return;}
+    c.innerHTML=payments.map(p=>`
+      <div class="pitem" id="payment-${p.id}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div style="min-width:0;">
+            <div class="pname">${p.first_name} ${p.last_name}</div>
+            <div class="psub">${p.phone} · ${p.school}</div>
+            <div class="psub">${planNames[p.plan]||p.plan} · ${methodNames[p.payment_method]||p.payment_method}</div>
+            ${p.payment_type==='talonario'?'<span class="badge badge-blue" style="margin-top:4px;">Pago de Talonario</span>':''}
+            <div class="psub" style="margin-top:4px;">Acumulado: ${fmtCOP(p.amount_paid)} / ${fmtCOP(p.total_cost)}</div>
+            <div class="psub">${fmtDate(p.created_at)}</div>
+            ${p.receipt_url?`<a href="${p.receipt_url}" target="_blank" class="receipt-link">📎 Ver comprobante</a>`:'<span style="font-size:11px;color:var(--text-3);">Sin comprobante</span>'}
+          </div>
+          <div style="flex-shrink:0;text-align:right;">
+            <div class="pamt">${fmtCOP(p.amount)}</div>
+            <div class="pamtsub">abono</div>
+          </div>
+        </div>
+        <div class="pactions">
+          <button class="btn btn-success btn-sm" onclick="action('${p.id}','approve')">✅ Aprobar</button>
+          <button class="btn btn-danger btn-sm" onclick="action('${p.id}','reject')">❌ Rechazar</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function action(id,act){
+    if(!confirm(`¿${act==='approve'?'Aprobar':'Rechazar'} este pago?`)) return;
+    const res=await fetch(`/admin/api/payments/${id}/${act}`,{method:'POST'});
+    const data=await res.json();
+    if(data.success){
+      document.getElementById(`payment-${id}`)?.remove();
+      const count=document.querySelectorAll('[id^="payment-"]').length;
+      document.getElementById('statPending').textContent=count;
+      if(!count) document.getElementById('tabPending').innerHTML='<div class="empty"><div class="empty-icon">✅</div><p>No hay pagos pendientes</p></div>';
+      if(data.ticketAssigned) alert(`✅ Talonario #${data.ticketAssigned} asignado automáticamente a ${data.studentName}`);
+      loadData();
+    } else if(data.error) {
+      alert('Error: '+data.error);
+    }
+  }
+
+  async function loadStudents(){
+    const res=await fetch('/admin/api/students'); const data=await res.json();
+    const tb=document.getElementById('studentsBody');
+    if(!data.students||!data.students.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-2);">Sin estudiantes</td></tr>';return;}
+    tb.innerHTML=data.students.map(s=>{
+      const pct=s.debt?s.debt.pct:0;
+      return `<tr>
+        <td><div style="font-weight:600;">${s.first_name} ${s.last_name}</div><div style="font-size:11px;color:var(--text-3);">${s.email}</div></td>
+        <td style="font-size:12px;">${s.school}</td>
+        <td>${s.plan?`<span class="badge badge-blue">${planNames[s.plan]||s.plan}</span>`:'—'}</td>
+        <td style="font-size:12px;">${s.payment_method?methodNames[s.payment_method]:'—'}</td>
+        <td style="font-weight:600;">${s.amount_paid?fmtCOP(s.amount_paid):'—'}</td>
+        <td>${s.talonario_number?`<span class="badge badge-approved">#${s.talonario_number}</span>`:'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function loadTalonarios(){
+    const res=await fetch('/admin/api/talonarios'); const data=await res.json();
+    const c=document.getElementById('talonariosList');
+    const tals=data.talonarios||[];
+    if(!tals.length){c.innerHTML='<p style="color:var(--text-2);font-size:13px;">Sin talonarios. Agrega el primero arriba.</p>';return;}
+    c.innerHTML=tals.map(t=>`
+      <div class="talonario-row">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+          <div>
+            <div class="talonario-num">Talonario #${t.ticket_number}</div>
+            <div style="font-size:11px;color:var(--text-2);margin:4px 0;">
+              ${t.is_assigned ? `<span class="badge badge-approved">Asignado a ${t.first_name||'?'} ${t.last_name||''}</span>` : '<span class="badge badge-blue">Disponible</span>'}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-weight:800;font-size:.95rem;color:var(--cyan);font-family:var(--font-title);">${fmtCOP(t.recaudado||0)}</div>
+            <div style="font-size:10px;color:var(--text-3);">${t.vendidos||0}/${t.bono_count||0} vendidos</div>
+            ${!t.is_assigned?`<button class="btn btn-danger btn-xs" style="margin-top:6px;" onclick="deleteTalonario('${t.id}')">Eliminar</button>`:''}
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  async function createTalonario(){
+    const num=document.getElementById('newTicketNum').value.trim();
+    const bonosStr=document.getElementById('newBonosNums').value.trim();
+    const al=document.getElementById('talonarioAlert'); al.className='alert';
+    const su=document.getElementById('talonarioSuccess'); su.className='alert';
+    if(!num){ al.textContent='Ingresa el número de talonario'; al.className='alert alert-error show'; return; }
+    if(!bonosStr){ al.textContent='Ingresa los números de bono'; al.className='alert alert-error show'; return; }
+    const bonos=bonosStr.split(',').map(b=>parseInt(b.trim())).filter(b=>!isNaN(b));
+    if(bonos.length===0){ al.textContent='Ingresa al menos un número de bono válido'; al.className='alert alert-error show'; return; }
+    try{
+      const res=await fetch('/admin/api/talonarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_number:parseInt(num),bonos})});
+      const data=await res.json();
+      if(data.success){
+        su.textContent=`Talonario #${num} creado con ${bonos.length} bonos`;
+        su.className='alert alert-success show';
+        document.getElementById('newTicketNum').value='';
+        document.getElementById('newBonosNums').value='';
+        await loadTalonarios();
+      } else { al.textContent=data.error||'Error'; al.className='alert alert-error show'; }
+    }catch(e){ al.textContent='Error de conexión'; al.className='alert alert-error show'; }
+  }
+
+  async function importBulk(){
+    const json=document.getElementById('bulkJson').value.trim();
+    const al=document.getElementById('talonarioAlert'); al.className='alert';
+    const su=document.getElementById('talonarioSuccess'); su.className='alert';
+    if(!json){ al.textContent='Pega el JSON a importar'; al.className='alert alert-error show'; return; }
+    let talonarios;
+    try{ talonarios=JSON.parse(json); }
+    catch(e){ al.textContent='JSON inválido. Verifica el formato.'; al.className='alert alert-error show'; return; }
+    try{
+      const res=await fetch('/admin/api/talonarios/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({talonarios})});
+      const data=await res.json();
+      if(data.success){
+        su.textContent=`Importados: ${data.created} nuevos, ${data.skipped} omitidos`;
+        su.className='alert alert-success show';
+        document.getElementById('bulkJson').value='';
+        await loadTalonarios();
+      } else { al.textContent=data.error||'Error'; al.className='alert alert-error show'; }
+    }catch(e){ al.textContent='Error: '+e.message; al.className='alert alert-error show'; }
+  }
+
+  async function deleteTalonario(id){
+    if(!confirm('¿Eliminar este talonario?')) return;
+    const res=await fetch(`/admin/api/talonarios/${id}`,{method:'DELETE'});
+    const data=await res.json();
+    if(data.success) await loadTalonarios();
+    else alert(data.error||'Error al eliminar');
+  }
+
+  function showTab(tab,btn){
+    ['tabPending','tabStudents','tabTalonarios'].forEach(t=>document.getElementById(t).style.display='none');
+    document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='block';
+    document.querySelectorAll('.tab-btn,.sidebar nav a[id^="nav"]').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    if(tab==='students') loadStudents();
+    if(tab==='talonarios') loadTalonarios();
+  }
+
+  loadData();
+</script>
+</body>
+</html>

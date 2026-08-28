@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Iniciar sesión — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; position:relative; }
+    body::after { content:''; position:fixed; top:50%; left:50%; transform:translate(-50%,-60%); width:500px; height:400px; background:radial-gradient(circle,rgba(14,165,233,.1) 0%,transparent 70%); pointer-events:none; z-index:0; }
+    .wrap { width:100%; max-width:380px; position:relative; z-index:1; }
+    .logo-top { text-align:center; margin-bottom:28px; }
+    .logo-top a { font-size:11px; color:var(--text-3); text-decoration:none; display:flex; align-items:center; gap:4px; justify-content:center; margin-bottom:16px; }
+    .logo-top h2 { font-size:1.4rem; margin-bottom:4px; }
+    .logo-top p { font-size:13px; }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <div class="wrap fade-up">
+    <div class="logo-top">
+      <a href="/">← Volver</a>
+      <img src="/assets/logo-nav.png" alt="Summer Class" style="height:64px;width:auto;display:block;margin:0 auto;">
+      <p>Ingresa con tu correo registrado</p>
+    </div>
+    <div class="card">
+      <div class="alert alert-error" id="alert"></div>
+      <div class="form-group"><label>Correo electrónico</label><input type="email" id="email" placeholder="tu@gmail.com" autocomplete="email" onkeydown="if(event.key==='Enter')login()"></div>
+      <button class="btn btn-primary" onclick="login()" id="loginBtn">Entrar →</button>
+    </div>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-3);">
+      ¿Sin cuenta? <a href="/registro" style="color:var(--cyan);text-decoration:none;font-weight:600;">Regístrate aquí</a>
+    </p>
+    <button class="btn btn-ghost btn-sm" type="button" style="margin-top:12px;" onclick="requestAccess()">Enviar enlace seguro a mi correo</button>
+  </div>
+  <script>
+    async function login(){
+      const email=document.getElementById('email').value.trim();
+      const al=document.getElementById('alert'); al.className='alert';
+      if(!email){ al.textContent='Ingresa tu correo'; al.className='alert alert-error show'; return; }
+      const btn=document.getElementById('loginBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+      try{
+        const res=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+        const data=await res.json();
+        if(data.success) window.location.href=data.redirect;
+        else{ al.textContent=data.error||'Correo no encontrado. ¿Ya tienes cuenta?'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Entrar →'; }
+      }catch{ al.textContent='Error de conexión'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Entrar →'; }
+    }
+    async function requestAccess(){
+      const email=document.getElementById('email').value.trim(), al=document.getElementById('alert');
+      if(!email){al.textContent='Ingresa tu correo primero';al.className='alert alert-error show';return;}
+      const res=await fetch('/request-access',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}); const data=await res.json();
+      al.textContent=data.message; al.className='alert alert-success show';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Mis Bonos — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .page-hero{padding:32px 20px 20px;text-align:center;position:relative;}
+    .page-hero::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:400px;height:280px;background:radial-gradient(circle,rgba(14,165,233,.12) 0%,transparent 70%);pointer-events:none;}
+    .page-hero>*{position:relative;z-index:1;}
+    .talonario-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(14,165,233,.12);border:1px solid rgba(14,165,233,.3);border-radius:100px;padding:5px 16px;font-size:12px;font-weight:700;color:var(--cyan);margin:10px 0 6px;font-family:var(--font-title);}
+    .bono-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);margin-bottom:12px;overflow:hidden;transition:border-color .15s;}
+    .bono-card:hover{border-color:var(--glass-border-2);}
+    .bono-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(14,165,233,.09);}
+    .bono-number{font-weight:900;font-size:1rem;font-family:var(--font-title);color:var(--cyan);}
+    .bono-body{padding:12px 18px;}
+    .sum-val{font-size:1.3rem;font-weight:800;letter-spacing:-1px;color:var(--cyan);font-family:var(--font-title);}
+    .sum-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;margin-bottom:2px;font-family:var(--font-title);}
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <nav class="topbar">
+    <a href="/dashboard" class="topbar-link">← Dashboard</a>
+    <a href="/" class="logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="logo-img"></a>
+    <a href="/logout" class="topbar-link">Salir</a>
+  </nav>
+
+  <div class="page-hero fade-up">
+    <div class="section-label">Bono de Apoyo</div>
+    <h2>Mis <span class="accent">Bonos</span></h2>
+    <p style="margin-top:6px;">Asigna compradores a cada bono y registra sus cuotas</p>
+    <div class="talonario-badge" id="talonarioBadge">Talonario #—</div>
+  </div>
+
+  <div class="container" style="padding-bottom:80px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div><div class="sum-lbl">Total recolectado</div><div class="sum-val" id="grandTotal">$0</div></div>
+      <div style="text-align:right;"><div class="sum-lbl">Bonos</div><div class="sum-val" id="totalBonos">0</div></div>
+    </div>
+    <div id="bonosList"><p style="text-align:center;padding:40px 0;color:var(--text-2);">Cargando...</p></div>
+  </div>
+
+  <div class="modal-overlay" id="buyerModal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h3 id="modalTitle">Asignar comprador</h3>
+      <p id="modalSub" style="color:var(--text-2);font-size:13px;margin:6px 0 18px;"></p>
+      <div class="alert alert-error" id="modalAlert"></div>
+      <div class="form-group"><label>Nombre completo del comprador</label><input type="text" id="buyerName" placeholder="Juan Pérez" autocomplete="off"></div>
+      <div class="form-group"><label>Celular / WhatsApp</label><input type="tel" id="buyerPhone" placeholder="300 123 4567" autocomplete="off"></div>
+      <button class="btn btn-primary" id="saveBuyerBtn" onclick="saveBuyer()">Guardar comprador</button>
+      <button class="btn btn-ghost" onclick="closeModal()" style="margin-top:8px;">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="cuotaModal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h3 id="cuotaModalTitle">Registrar cuota</h3>
+      <p id="cuotaModalSub" style="color:var(--text-2);font-size:13px;margin:6px 0 18px;"></p>
+      <div class="alert alert-error" id="cuotaModalAlert"></div>
+      <div class="notice"><span>💡</span><span id="cuotaModalAmount">Al confirmar, se registra el pago de esta cuota.</span></div>
+      <button class="btn btn-primary" id="saveCuotaBtn" onclick="saveCuota()">Confirmar pago</button>
+      <button class="btn btn-ghost" onclick="closeCuotaModal()" style="margin-top:8px;">Cancelar</button>
+    </div>
+  </div>
+
+  <script>
+    const CUOTA_NAMES = ['Cuota 1', 'Cuota 2', 'Cuota final'];
+    let MODAL_BONO_ID = null;
+    let CUOTA_BONO_ID = null;
+    let CUOTA_NUM = null;
+    let BONO_PRICE = 60000;
+    let CUOTA_AMOUNT = 20000;
+    const fmtCOP = n => '$' + Number(n).toLocaleString('es-CO');
+
+    async function loadBonos(){
+      try{
+        const configRes = await fetch('/api/config');
+        const config = await configRes.json();
+
+        const res = await fetch('/api/bonos/my');
+        if(res.status===401||res.redirected){window.location.href='/login';return;}
+        const data = await res.json();
+        if(data.error){document.getElementById('bonosList').innerHTML=`<div class="card" style="text-align:center;padding:30px;"><p style="color:var(--danger);">${data.error}</p><a href="/dashboard" style="color:var(--cyan);font-size:13px;">← Volver al dashboard</a></div>`;return;}
+        if(data.talonario_number) document.getElementById('talonarioBadge').textContent='Talonario #'+data.talonario_number;
+
+        const dashRes = await fetch('/api/dashboard-data');
+        if(dashRes.ok){
+          const dash = await dashRes.json();
+          if(dash.enrollment && config.talonario){
+            const planKey = dash.enrollment.plan;
+            const planCfg = config.talonario[planKey] || config.talonario.costa_atlantica;
+            BONO_PRICE = planCfg.bono_price;
+            CUOTA_AMOUNT = Math.round(planCfg.bono_price / planCfg.cuotas);
+          }
+        }
+        render(data.bonos||[]);
+      }catch(e){
+        document.getElementById('bonosList').innerHTML='<p style="color:var(--danger);text-align:center;padding:20px;">Error al cargar. <a href="/talonario" style="color:var(--cyan);">Reintentar</a></p>';
+      }
+    }
+
+    function render(bonos){
+      const c=document.getElementById('bonosList');
+      if(!bonos.length){c.innerHTML='<div class="card" style="text-align:center;padding:32px;"><p>Sin bonos asignados aún.<br>El admin asignará tus bonos al aprobar tu pago.</p></div>';return;}
+
+      let totalRecolectado=0;
+      document.getElementById('totalBonos').textContent=bonos.length;
+
+      c.innerHTML=bonos.map(bono => {
+        const cuotas = [
+          {n:1, paid: bono.cuota1, label:`Cuota 1 · ${fmtCOP(CUOTA_AMOUNT)}`},
+          {n:2, paid: bono.cuota2, label:`Cuota 2 · ${fmtCOP(CUOTA_AMOUNT)}`},
+          {n:3, paid: bono.cuota3, label:`Cuota final · ${fmtCOP(CUOTA_AMOUNT)}`}
+        ];
+        const paid = cuotas.filter(c=>c.paid).length;
+        const total = paid * CUOTA_AMOUNT;
+        totalRecolectado += total;
+
+        const cuotaRows = cuotas.map(cuota => {
+          if(cuota.paid){
+            return `<div class="cuota-row"><div class="cuota-dot cuota-done">✓</div><div style="flex:1;"><div class="cuota-name">${cuota.label}</div><div class="cuota-buyer">Pagado</div></div><div style="font-weight:700;font-size:12px;color:var(--success);">${fmtCOP(CUOTA_AMOUNT)}</div></div>`;
+          } else if(bono.buyer_name) {
+            return `<div class="cuota-row">
+              <div class="cuota-dot cuota-pending">${cuota.n}</div>
+              <div style="flex:1;"><div class="cuota-name" style="color:var(--text-2);">${cuota.label}</div><div class="cuota-buyer">Pendiente</div></div>
+              <button class="btn btn-primary btn-xs" style="width:auto;flex-shrink:0;"
+                data-bono-id="${bono.id}" data-cuota-num="${cuota.n}" data-cuota-label="${cuota.label}" data-buyer="${bono.buyer_name}"
+                onclick="openCuotaModal(this)">+ Registrar</button>
+            </div>`;
+          } else {
+            return `<div class="cuota-row"><div class="cuota-dot cuota-pending">${cuota.n}</div><div style="flex:1;"><div class="cuota-name" style="color:var(--text-3);">${cuota.label}</div><div class="cuota-buyer">Asigna un comprador primero</div></div></div>`;
+          }
+        }).join('');
+
+        const pct = Math.round((paid/3)*100);
+        const pips = [1,2,3].map(i=>`<div class="pip ${i<=paid?'on':''}"></div>`).join('');
+
+        return `<div class="bono-card fade-up">
+          <div class="bono-head">
+            <div><div class="bono-number">Bono #${bono.bono_number}</div><div class="pip-row" style="margin-top:6px;">${pips}</div></div>
+            <div style="text-align:right;">
+              <div style="font-size:1rem;font-weight:800;color:var(--cyan);font-family:var(--font-title);">${fmtCOP(total)}</div>
+              <div style="font-size:11px;color:var(--text-3);">${paid}/3 cuotas · ${pct}%</div>
+              ${bono.buyer_name
+                ? `<span class="badge badge-approved" style="margin-top:4px;">${bono.buyer_name.split(' ')[0]}</span>`
+                : `<button class="btn btn-outline btn-xs" style="width:auto;margin-top:4px;" data-bono-id="${bono.id}" data-bono-num="${bono.bono_number}" onclick="openBuyerModal(this)">+ Asignar</button>`
+              }
+            </div>
+          </div>
+          <div class="bono-body">${cuotaRows}</div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('grandTotal').textContent = fmtCOP(totalRecolectado);
+    }
+
+    function openBuyerModal(btn){
+      MODAL_BONO_ID = btn.getAttribute('data-bono-id');
+      const bonoNum = btn.getAttribute('data-bono-num');
+      document.getElementById('modalTitle').textContent = 'Asignar comprador';
+      document.getElementById('modalSub').textContent = 'Bono #'+bonoNum+' · '+fmtCOP(BONO_PRICE)+' total (3 cuotas)';
+      document.getElementById('buyerName').value='';
+      document.getElementById('buyerPhone').value='';
+      document.getElementById('modalAlert').className='alert';
+      document.getElementById('saveBuyerBtn').disabled=false;
+      document.getElementById('saveBuyerBtn').textContent='Guardar comprador';
+      document.getElementById('buyerModal').classList.add('open');
+      setTimeout(()=>document.getElementById('buyerName').focus(),200);
+    }
+    function closeModal(){ document.getElementById('buyerModal').classList.remove('open'); MODAL_BONO_ID=null; }
+
+    function openCuotaModal(btn){
+      CUOTA_BONO_ID = btn.getAttribute('data-bono-id');
+      CUOTA_NUM     = parseInt(btn.getAttribute('data-cuota-num'));
+      const label   = btn.getAttribute('data-cuota-label');
+      const buyer   = btn.getAttribute('data-buyer');
+      document.getElementById('cuotaModalTitle').textContent = 'Registrar pago';
+      document.getElementById('cuotaModalSub').textContent = label+' · Comprador: '+buyer;
+      document.getElementById('cuotaModalAmount').textContent = 'Al confirmar, se registra el pago de '+fmtCOP(CUOTA_AMOUNT)+' para esta cuota.';
+      document.getElementById('cuotaModalAlert').className='alert';
+      document.getElementById('saveCuotaBtn').disabled=false;
+      document.getElementById('saveCuotaBtn').textContent='Confirmar pago de '+fmtCOP(CUOTA_AMOUNT);
+      document.getElementById('cuotaModal').classList.add('open');
+    }
+    function closeCuotaModal(){ document.getElementById('cuotaModal').classList.remove('open'); CUOTA_BONO_ID=null; CUOTA_NUM=null; }
+
+    async function saveBuyer(){
+      const name=document.getElementById('buyerName').value.trim();
+      const phone=document.getElementById('buyerPhone').value.trim();
+      const al=document.getElementById('modalAlert'); al.className='alert';
+      if(!name){al.textContent='Ingresa el nombre'; al.className='alert alert-error show'; return;}
+      if(!phone){al.textContent='Ingresa el celular'; al.className='alert alert-error show'; return;}
+      if(!MODAL_BONO_ID){al.textContent='Error: recarga la página'; al.className='alert alert-error show'; return;}
+      const btn=document.getElementById('saveBuyerBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Guardando...';
+      try{
+        const res=await fetch('/api/bonos/assign-buyer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bono_id:MODAL_BONO_ID,buyer_name:name,buyer_phone:phone})});
+        let data; try{data=await res.json();}catch(e){throw new Error('Respuesta inválida');}
+        if(data.success){closeModal(); await loadBonos();}
+        else{al.textContent=data.error||'Error al guardar'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Guardar comprador';}
+      }catch(e){al.textContent='Error: '+e.message; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Guardar comprador';}
+    }
+
+    async function saveCuota(){
+      const al=document.getElementById('cuotaModalAlert'); al.className='alert';
+      if(!CUOTA_BONO_ID||!CUOTA_NUM){al.textContent='Error de datos'; al.className='alert alert-error show'; return;}
+      const btn=document.getElementById('saveCuotaBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Guardando...';
+      try{
+        const res=await fetch('/api/bonos/pay-cuota',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bono_id:CUOTA_BONO_ID,cuota_num:CUOTA_NUM})});
+        let data; try{data=await res.json();}catch(e){throw new Error('Respuesta inválida');}
+        if(data.success){closeCuotaModal(); await loadBonos();}
+        else{al.textContent=data.error||'Error al registrar'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Confirmar pago';}
+      }catch(e){al.textContent='Error: '+e.message; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Confirmar pago';}
+    }
+
+    document.getElementById('buyerModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+    document.getElementById('cuotaModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCuotaModal();});
+    document.getElementById('buyerName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('buyerPhone').focus();});
+    document.getElementById('buyerPhone').addEventListener('keydown',e=>{if(e.key==='Enter')saveBuyer();});
+
+    loadBonos();
+  </script>
+</body>
+</html>

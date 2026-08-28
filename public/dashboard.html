@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Mi Dashboard — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .debt-hero { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-xl); padding:24px 20px; margin-bottom:14px; position:relative; overflow:hidden; }
+    .debt-hero::before { content:''; position:absolute; top:-40px;right:-40px; width:180px; height:180px; background:radial-gradient(circle,rgba(14,165,233,.12) 0%,transparent 70%); pointer-events:none; }
+    .plan-tag { display:inline-flex; align-items:center; background:rgba(14,165,233,.12); border:1px solid rgba(14,165,233,.3); border-radius:100px; padding:4px 12px; font-size:11px; font-weight:700; color:var(--cyan); margin-bottom:12px; letter-spacing:.03em; font-family:var(--font-title); }
+    .balance-lbl { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-3); margin-bottom:4px; font-weight:700; font-family:var(--font-title); }
+    .balance-amt { font-size:2.4rem; font-weight:800; letter-spacing:-2px; color:var(--text); margin-bottom:6px; line-height:1; font-family:var(--font-title); }
+    .ring-container { display:flex; align-items:center; gap:18px; margin:14px 0 8px; }
+    .ring-info .paid-val { font-size:1.4rem; font-weight:800; letter-spacing:-1px; color:var(--cyan); font-family:var(--font-title); }
+    .ring-info .paid-lbl { font-size:10px; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+    .ring-info .balance-mini { font-size:13px; color:var(--text-2); margin-top:6px; }
+    .ring-info .balance-mini span { color:var(--warning); font-weight:700; }
+    .debt-stats { display:flex; justify-content:space-between; margin-top:12px; }
+    .ds strong { display:block; font-size:14px; font-weight:700; color:var(--text); font-family:var(--font-title); }
+    .ds span   { font-size:10px; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; }
+    .action-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+    .pay-item { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(14,165,233,.09); }
+    .pay-item:last-child { border-bottom:none; }
+    .pay-amount { font-weight:700; font-size:14px; font-family:var(--font-title); }
+    .pay-date   { font-size:11px; color:var(--text-3); margin-top:2px; }
+    .loading { text-align:center; padding:80px 20px; }
+    .spin-lg { width:32px; height:32px; border-width:3px; margin:0 auto 14px; }
+    .talonario-hero { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; }
+    .talonario-num { font-size:2rem; font-weight:900; color:var(--cyan); letter-spacing:-1px; font-family:var(--font-title); }
+    .pending-box { background:var(--warning-bg); border:1px solid rgba(251,191,36,.25); border-radius:var(--radius-md); padding:18px; text-align:center; margin:12px 0; }
+    .buyer-card { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:10px; }
+    .buyer-name { font-weight:700; font-size:14px; font-family:var(--font-title); margin-bottom:8px; }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <nav class="topbar">
+    <a href="/" class="logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="logo-img"></a>
+    <a href="/logout" class="topbar-link">Salir</a>
+  </nav>
+
+  <div id="loadingState" class="loading">
+    <div class="spinner spin-lg"></div>
+    <p>Cargando tu información...</p>
+  </div>
+
+  <div id="mainContent" style="display:none;" class="fade-in">
+    <div class="container" style="padding-top:22px;padding-bottom:56px;">
+      <div style="margin-bottom:18px;">
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:2px;">Bienvenido 👋</p>
+        <h2 id="studentName" style="letter-spacing:-.5px;">Mi Dashboard</h2>
+      </div>
+
+      <div id="noEnrollment" style="display:none;">
+        <div class="card" style="text-align:center;padding:40px 24px;">
+          <div style="font-size:2.5rem;margin-bottom:14px;">📋</div>
+          <h3 style="margin-bottom:8px;">Sin plan activo</h3>
+          <p style="margin-bottom:24px;">Elige tu destino para comenzar</p>
+          <a href="/select-plan" class="btn btn-primary" style="display:inline-flex;width:auto;padding:12px 28px;">Elegir mi plan →</a>
+        </div>
+      </div>
+
+      <div id="cuotasDashboard" style="display:none;">
+        <div class="debt-hero fade-up">
+          <div class="plan-tag" id="planTag"></div>
+          <div class="balance-lbl">Saldo pendiente</div>
+          <div class="balance-amt" id="balanceAmount">$0</div>
+          <div class="ring-container">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <defs><linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#22D3EE"/></linearGradient></defs>
+              <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(14,165,233,0.15)" stroke-width="7"/>
+              <circle id="ringCircle" cx="40" cy="40" r="32" fill="none" stroke="url(#rg)" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 40 40)" style="transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 0 6px rgba(14,165,233,.6));"/>
+              <text id="ringPct" x="40" y="45" text-anchor="middle" font-size="14" font-weight="800" fill="#22D3EE" font-family="Montserrat,-apple-system,sans-serif">0%</text>
+            </svg>
+            <div class="ring-info">
+              <div class="paid-val" id="paidAmountRing">$0</div>
+              <div class="paid-lbl">pagado</div>
+              <div class="balance-mini" style="margin-top:6px;">Saldo: <span id="balanceMini">$0</span></div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:2px;">de <span id="totalAmountRing" style="color:var(--text-2);font-weight:600;">$0</span></div>
+            </div>
+          </div>
+          <div class="progress-track" style="margin-top:4px;"><div class="progress-fill" id="debtBar" style="width:0%"></div></div>
+          <div class="debt-stats">
+            <div class="ds"><strong id="paidAmount">$0</strong><span>Pagado</span></div>
+            <div class="ds" style="text-align:center;"><strong id="pctText" style="color:var(--cyan);">0%</strong><span>Completado</span></div>
+            <div class="ds" style="text-align:right;"><strong id="totalAmount">$0</strong><span>Total</span></div>
+          </div>
+        </div>
+
+        <div class="action-row fade-up" style="animation-delay:.1s;">
+          <a href="/pagar" class="btn btn-primary" style="width:100%;">+ Nuevo abono</a>
+          <a href="https://wa.me/573208820423" class="whatsapp-btn" target="_blank">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Soporte
+          </a>
+        </div>
+
+        <div class="card card-sm fade-up" style="animation-delay:.2s;">
+          <div class="section-label">Historial de abonos</div>
+          <div id="paymentsList"><p style="text-align:center;padding:14px 0;font-size:13px;">Sin abonos aún</p></div>
+        </div>
+      </div>
+
+      <div id="talonarioPending" style="display:none;">
+        <div class="pending-box fade-up">
+          <div style="font-size:2rem;margin-bottom:10px;">⏳</div>
+          <h3 style="color:var(--warning);margin-bottom:6px;">Pago en revisión</h3>
+          <p>El admin está verificando tu comprobante. Cuando sea aprobado, recibirás tu talonario con los bonos asignados.</p>
+        </div>
+        <a href="https://wa.me/573208820423" class="whatsapp-btn" style="margin-top:8px;" target="_blank">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Preguntar por mi aprobación
+        </a>
+      </div>
+
+      <div id="talonarioDashboard" style="display:none;">
+        <div class="talonario-hero fade-up">
+          <div class="plan-tag" id="talonarioPlanTag"></div>
+          <div class="section-label">Tu Talonario</div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px;">
+            <div class="talonario-num" id="talonarioNumDisplay">#000</div>
+            <span class="badge badge-approved">Activo</span>
+          </div>
+          <p style="font-size:12px;">Bonos asignados · Vende cada bono en 3 cuotas</p>
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <div class="stat-card" style="flex:1;padding:12px;"><div class="stat-value" id="bonosVendidos" style="font-size:1.2rem;">0</div><div class="stat-label">Bonos vendidos</div></div>
+            <div class="stat-card" style="flex:1;padding:12px;"><div class="stat-value" id="totalRecolectado" style="font-size:1.2rem;">$0</div><div class="stat-label">Recolectado</div></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h3>Mis Bonos</h3>
+          <a href="/talonario" class="btn btn-outline btn-sm" style="width:auto;">Ver detalles →</a>
+        </div>
+        <div id="bonosList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fmtCOP=n=>'$'+Number(n).toLocaleString('es-CO');
+    const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+    const planNames={san_andres:'🏝 San Andrés',costa_atlantica:'🌊 Costa Atlántica'};
+    const statusLabels={pending:'Pendiente',approved:'Aprobado',rejected:'Rechazado'};
+
+    async function load(){
+      try{
+        const res=await fetch('/api/dashboard-data');
+        if(res.redirected||res.status===401){window.location.href='/login';return;}
+        const data=await res.json();
+        document.getElementById('loadingState').style.display='none';
+        document.getElementById('mainContent').style.display='block';
+        document.getElementById('studentName').textContent=data.student.first_name+' '+data.student.last_name;
+        if(!data.enrollment){document.getElementById('noEnrollment').style.display='block';return;}
+        if(data.enrollment.payment_method==='talonario'){
+          if(data.enrollment.status==='active' && data.talonario){
+            document.getElementById('talonarioDashboard').style.display='block';
+            renderTalonario(data.enrollment, data.talonario, data.bonos);
+          } else {
+            document.getElementById('talonarioPending').style.display='block';
+          }
+        } else {
+          document.getElementById('cuotasDashboard').style.display='block';
+          renderDebt(data.enrollment,data.debt);
+          renderPayments(data.payments);
+        }
+      }catch(e){
+        document.getElementById('loadingState').innerHTML='<p style="color:var(--danger)">Error al cargar. <a href="/dashboard" style="color:var(--cyan)">Recargar</a></p>';
+      }
+    }
+
+    function renderDebt(e,d){
+      document.getElementById('planTag').textContent=planNames[e.plan]||e.plan;
+      document.getElementById('balanceAmount').textContent=fmtCOP(d.balance);
+      document.getElementById('paidAmount').textContent=fmtCOP(d.paid);
+      document.getElementById('totalAmount').textContent=fmtCOP(d.total);
+      document.getElementById('pctText').textContent=d.pct+'%';
+      document.getElementById('paidAmountRing').textContent=fmtCOP(d.paid);
+      document.getElementById('balanceMini').textContent=fmtCOP(d.balance);
+      document.getElementById('totalAmountRing').textContent=fmtCOP(d.total);
+      setTimeout(()=>{
+        const circ=2*Math.PI*32;
+        document.getElementById('ringCircle').style.strokeDasharray=circ;
+        document.getElementById('ringCircle').style.strokeDashoffset=circ-(d.pct/100)*circ;
+        document.getElementById('ringPct').textContent=d.pct+'%';
+        document.getElementById('debtBar').style.width=d.pct+'%';
+      },300);
+    }
+
+    function renderPayments(payments){
+      const c=document.getElementById('paymentsList');
+      if(!payments||!payments.length){c.innerHTML='<p style="text-align:center;padding:14px 0;font-size:13px;">Sin abonos registrados</p>';return;}
+      c.innerHTML=payments.map(p=>`
+        <div class="pay-item">
+          <div><div class="pay-amount">${fmtCOP(p.amount)}</div><div class="pay-date">${fmtDate(p.created_at)}</div></div>
+          <span class="badge badge-${p.status}">${statusLabels[p.status]}</span>
+        </div>`).join('');
+    }
+
+    function renderTalonario(enrollment, talonario, bonos){
+      document.getElementById('talonarioPlanTag').textContent=planNames[enrollment.plan]||enrollment.plan;
+      document.getElementById('talonarioNumDisplay').textContent='#'+talonario.ticket_number;
+      const planCfg = { san_andres:{bonos_per_ticket:43,bono_price:70000}, costa_atlantica:{bonos_per_ticket:37,bono_price:60000} };
+      const cfg = planCfg[enrollment.plan] || planCfg.costa_atlantica;
+      const bonosArr = bonos || [];
+      let vendidos=0, total=0;
+      bonosArr.forEach(b=>{ if(b.buyer_name){ vendidos++; } total+=parseInt(b.total_paid||0); });
+      document.getElementById('bonosVendidos').textContent=vendidos+'/'+bonosArr.length;
+      document.getElementById('totalRecolectado').textContent=fmtCOP(total);
+      const c=document.getElementById('bonosList');
+      if(!bonosArr.length){c.innerHTML='<p style="color:var(--text-2);font-size:13px;">Sin bonos asignados</p>';return;}
+      c.innerHTML=bonosArr.slice(0,3).map(b=>`
+        <div class="buyer-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="buyer-name">${b.bono_number ? `<span style="color:var(--cyan);">Bono #${b.bono_number}</span>` : 'Sin bono'}</div>
+            <span class="badge ${b.buyer_name?'badge-approved':'badge-blue'}">${b.buyer_name?'Vendido':'Disponible'}</span>
+          </div>
+          ${b.buyer_name
+            ? `<div style="font-size:12px;color:var(--text-2);margin-bottom:8px;">Comprador: <strong style="color:var(--text);">${b.buyer_name}</strong></div>
+               <div class="bono-row"><span class="bono-label">Cuota 1 · ${fmtCOP(cfg.bono_price/3)}</span><span class="${b.cuota1?'bono-ok':'bono-no'}">${b.cuota1?'✓ Pagado':'✗ Pendiente'}</span></div>
+               <div class="bono-row"><span class="bono-label">Cuota 2 · ${fmtCOP(cfg.bono_price/3)}</span><span class="${b.cuota2?'bono-ok':'bono-no'}">${b.cuota2?'✓ Pagado':'✗ Pendiente'}</span></div>
+               <div class="bono-row"><span class="bono-label">Cuota final · ${fmtCOP(cfg.bono_price/3)}</span><span class="${b.cuota3?'bono-ok':'bono-no'}">${b.cuota3?'✓ Pagado':'✗ Pendiente'}</span></div>`
+            : `<a href="/talonario" class="btn btn-primary btn-sm" style="width:auto;display:inline-flex;margin-top:4px;">Asignar comprador →</a>`
+          }
+        </div>`).join('');
+    }
+    load();
+  </script>
+</body>
+</html>

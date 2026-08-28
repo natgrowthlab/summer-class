@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Elige tu plan — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .plans-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+    .plan-emoji { font-size:2rem; margin-bottom:8px; }
+    .plan-name  { font-size:.95rem; font-weight:700; margin-bottom:4px; font-family:var(--font-title); }
+    .plan-sub   { font-size:11px; color:var(--text-3); margin-bottom:8px; }
+    .plan-feat  { margin-top:8px; }
+    .method-icon { font-size:1.3rem; flex-shrink:0; }
+    .talonario-opts { display:none; margin-top:12px; gap:10px; flex-direction:column; animation:fadeUp .3s ease; }
+    .talonario-opts.show { display:flex; }
+    .topt { display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md); cursor:pointer; text-decoration:none; transition:all .15s; }
+    .topt:hover { border-color:var(--glass-border-2); background:var(--glass-bg-2); transform:translateY(-1px); }
+    .topt-icon { font-size:1.4rem; }
+    .topt-title { font-weight:700; font-size:14px; color:var(--text); font-family:var(--font-title); }
+    .topt-sub   { font-size:12px; color:var(--text-2); margin-top:1px; }
+    @media(max-width:400px){ .plans-grid{grid-template-columns:1fr;} }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <nav class="topbar">
+    <a href="/registro" class="topbar-link">← Volver</a>
+    <a href="/" class="logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="logo-img"></a>
+    <a href="/logout" class="topbar-link">Salir</a>
+  </nav>
+  <div class="container" style="padding-top:24px;padding-bottom:56px;">
+    <div style="margin-bottom:22px;">
+      <div class="section-label">Paso 2 de 2</div>
+      <h2>Elige tu <span class="accent">destino</span></h2>
+      <p style="margin-top:6px;">Selecciona el plan y forma de pago</p>
+    </div>
+    <div class="alert alert-error" id="alert"></div>
+
+    <div class="section-label">Destino</div>
+    <div class="plans-grid">
+      <div class="plan-card" onclick="selectPlan('san_andres',this)">
+        <div class="plan-emoji">🏝</div>
+        <div class="plan-name">San Andrés</div>
+        <div class="plan-price" id="price-san_andres">$3.200.000</div>
+        <div class="plan-sub">5 días 4 noches</div>
+        <ul class="plan-feat"><li>Vuelos incluidos</li><li>Hospedaje</li><li>Alimentación buffet</li><li>Fiestas y tours</li></ul>
+      </div>
+      <div class="plan-card" onclick="selectPlan('costa_atlantica',this)">
+        <div class="plan-emoji">🌊</div>
+        <div class="plan-name">Costa Atlántica</div>
+        <div class="plan-price" id="price-costa_atlantica">$2.800.000</div>
+        <div class="plan-sub">9 días</div>
+        <ul class="plan-feat"><li>Bus privado</li><li>Hospedaje</li><li>Alimentación</li><li>+7 fiestas y tours</li></ul>
+      </div>
+    </div>
+
+    <div class="section-label">Método de pago</div>
+    <label class="method-option" onclick="selectMethod('cuotas',this)">
+      <input type="radio" name="method" value="cuotas">
+      <span class="method-icon">💳</span>
+      <div><div class="method-name">Abonos / Cuotas</div><div class="method-desc">Paga en partes hasta completar el total</div></div>
+    </label>
+    <label class="method-option" onclick="selectMethod('total',this)">
+      <input type="radio" name="method" value="total">
+      <span class="method-icon">✅</span>
+      <div><div class="method-name">Pago Total</div><div class="method-desc">Un solo comprobante por el valor completo</div></div>
+    </label>
+    <label class="method-option" id="talonarioOption" onclick="selectMethod('talonario',this)">
+      <input type="radio" name="method" value="talonario">
+      <span class="method-icon">🎟</span>
+      <div><div class="method-name">Bono de Apoyo (Talonario)</div><div class="method-desc" id="talonarioDesc">Vende bonos para financiar tu excursión · $10.000 el talonario</div></div>
+    </label>
+
+    <div class="talonario-opts" id="talonarioOpts">
+      <a href="/talonario-pago" class="topt" id="btnPagarTalonario">
+        <span class="topt-icon">💸</span>
+        <div><div class="topt-title">Pagar mi talonario</div><div class="topt-sub">Sube el comprobante</div></div>
+        <span style="margin-left:auto;color:var(--text-3);font-size:16px;">›</span>
+      </a>
+      <div class="topt" onclick="mostrarFormTalonario()">
+        <span class="topt-icon">🔢</span>
+        <div><div class="topt-title">Ya pagué mi talonario</div><div class="topt-sub">Ingresa tu número y activa tu cuenta</div></div>
+        <span style="margin-left:auto;color:var(--text-3);font-size:16px;">›</span>
+      </div>
+    </div>
+
+    <div id="talonarioNumForm" style="display:none;margin-top:10px;" class="card card-sm">
+      <div class="section-label">Número de talonario</div>
+      <p style="font-size:13px;margin-bottom:14px;">Ingresa el número que te asignó la agencia</p>
+      <div class="alert alert-error" id="alertTalonario"></div>
+      <div class="form-group" style="margin-bottom:12px;"><label>Número de talonario</label><input type="number" id="talonarioNum" placeholder="Ej: 231" min="1"></div>
+      <button class="btn btn-primary" onclick="activarTalonario()">Activar mi talonario →</button>
+      <button class="btn btn-ghost" onclick="ocultarFormTalonario()" style="margin-top:8px;">Cancelar</button>
+    </div>
+
+    <div style="margin-top:16px;" id="btnContinuar">
+      <button class="btn btn-primary" id="continueBtn" onclick="continuar()" disabled>Continuar →</button>
+    </div>
+  </div>
+
+  <script>
+    let sel={plan:null,method:null};
+    let talonarioConfig = {};
+
+    fetch('/api/config').then(r=>r.json()).then(d=>{
+      if(d.costs){
+        document.getElementById('price-san_andres').textContent='$'+d.costs.san_andres.toLocaleString('es-CO');
+        document.getElementById('price-costa_atlantica').textContent='$'+d.costs.costa_atlantica.toLocaleString('es-CO');
+      }
+      if(d.talonario) talonarioConfig = d.talonario;
+    }).catch(()=>{});
+
+    function selectPlan(p,el){
+      document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
+      el.classList.add('selected'); sel.plan=p; check();
+      const cfg = talonarioConfig[p];
+      if(cfg){
+        document.getElementById('talonarioDesc').textContent =
+          `$${cfg.student_price.toLocaleString('es-CO')} el talonario · ${cfg.bonos_per_ticket} bonos de $${cfg.bono_price.toLocaleString('es-CO')} c/u`;
+      }
+    }
+
+    function selectMethod(m,el){
+      document.querySelectorAll('.method-option').forEach(c=>c.classList.remove('selected')); el.classList.add('selected'); sel.method=m;
+      const opts=document.getElementById('talonarioOpts');
+      const btnCont=document.getElementById('btnContinuar');
+      if(m==='talonario'){ opts.classList.add('show'); btnCont.style.display='none'; }
+      else { opts.classList.remove('show'); document.getElementById('talonarioNumForm').style.display='none'; btnCont.style.display='block'; check(); }
+    }
+
+    function check(){ document.getElementById('continueBtn').disabled=!(sel.plan&&sel.method&&sel.method!=='talonario'); }
+    function mostrarFormTalonario(){ document.getElementById('talonarioNumForm').style.display='block'; }
+    function ocultarFormTalonario(){ document.getElementById('talonarioNumForm').style.display='none'; }
+
+    async function continuar(){
+      if(!sel.plan){ document.getElementById('alert').textContent='Selecciona un destino'; document.getElementById('alert').className='alert alert-error show'; return; }
+      const btn=document.getElementById('continueBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+      const res=await fetch('/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:sel.plan,payment_method:sel.method})});
+      const data=await res.json();
+      if(data.success) window.location.href=data.redirect;
+      else{ document.getElementById('alert').textContent=data.error; document.getElementById('alert').className='alert alert-error show'; btn.disabled=false; btn.textContent='Continuar →'; }
+    }
+
+    async function activarTalonario(){
+      const num=document.getElementById('talonarioNum').value.trim();
+      const al=document.getElementById('alertTalonario'); al.className='alert';
+      if(!num){ al.textContent='Ingresa el número de talonario'; al.className='alert alert-error show'; return; }
+      if(!sel.plan){ document.getElementById('alert').textContent='Selecciona un destino primero'; document.getElementById('alert').className='alert alert-error show'; return; }
+      const btn=document.querySelector('#talonarioNumForm .btn-primary');
+      btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Verificando...';
+      try{
+        const res=await fetch('/api/activate-talonario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({talonario_number:parseInt(num),plan:sel.plan})});
+        const data=await res.json();
+        if(data.success) window.location.href=data.redirect;
+        else{ al.textContent=data.error||'Número de talonario no encontrado o ya asignado'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Activar mi talonario →'; }
+      }catch{ al.textContent='Error de conexión'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Activar mi talonario →'; }
+    }
+
+    document.getElementById('btnPagarTalonario').addEventListener('click', async function(e){
+      e.preventDefault();
+      if(!sel.plan){ document.getElementById('alert').textContent='Selecciona un destino primero'; document.getElementById('alert').className='alert alert-error show'; return; }
+      await fetch('/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:sel.plan,payment_method:'talonario'})});
+      window.location.href='/talonario-pago';
+    });
+  </script>
+</body>
+</html>

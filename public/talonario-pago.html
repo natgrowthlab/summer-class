@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Pagar Talonario — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .price-hero { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); padding: 22px; margin-bottom: 20px; position: relative; overflow: hidden; }
+    .price-hero::before { content:''; position:absolute; top:-30px; right:-30px; width:140px; height:140px; background:radial-gradient(circle,rgba(14,165,233,.12) 0%,transparent 70%); pointer-events:none; }
+    .student-price { font-size: 2.4rem; font-weight: 900; letter-spacing: -2px; color: var(--cyan); font-family: var(--font-title); line-height: 1; }
+    .price-label { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .detail-item { background: rgba(14,165,233,.06); border: 1px solid rgba(14,165,233,.15); border-radius: 12px; padding: 12px; text-align: center; }
+    .detail-num { font-size: 1.3rem; font-weight: 800; color: var(--text); font-family: var(--font-title); }
+    .detail-lbl { font-size: 11px; color: var(--text-3); margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <nav class="topbar">
+    <a href="/select-plan" class="topbar-link">← Volver</a>
+    <a href="/" class="logo"><img src="/assets/logo-nav.png" alt="Summer Class" class="logo-img"></a>
+    <span></span>
+  </nav>
+  <div class="container" style="padding-top:24px;padding-bottom:56px;">
+    <div style="margin-bottom:20px;">
+      <div class="section-label">Pago de talonario</div>
+      <h2>Paga tu <span class="accent">Bono de Apoyo</span></h2>
+      <p style="margin-top:6px;" id="subtitleDesc">Una vez aprobado, recibirás tu talonario con los bonos asignados</p>
+    </div>
+    <div class="alert alert-error" id="alertError"></div>
+
+    <div class="price-hero">
+      <div class="price-label" id="planLabel">Talonario</div>
+      <div class="student-price" id="studentPrice">$10.000</div>
+      <div class="price-label">Valor para ti (estudiante)</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="detail-num" id="bonosCount">—</div><div class="detail-lbl">Bonos por talonario</div></div>
+        <div class="detail-item"><div class="detail-num" id="bonoPrice">—</div><div class="detail-lbl">Precio por bono (comprador)</div></div>
+      </div>
+    </div>
+
+    <div class="section-label">Datos bancarios</div>
+    <div class="bank-card" style="margin-bottom:20px;">
+      <div class="bank-row"><div class="bank-label">Banco</div><div class="bank-value" id="bankName">Bancolombia <button class="copy-btn" onclick="copy('Bancolombia',this)">Copiar</button></div></div>
+      <div class="bank-row"><div class="bank-label">Tipo de cuenta</div><div class="bank-value">Ahorros <button class="copy-btn" onclick="copy('Ahorros',this)">Copiar</button></div></div>
+      <div class="bank-row"><div class="bank-label">Número de cuenta</div><div class="bank-value" id="bankAccount">123-456789-00 <button class="copy-btn" onclick="copy('12345678900',this)">Copiar</button></div></div>
+      <div class="bank-row"><div class="bank-label">Titular</div><div class="bank-value" id="bankHolder">Summer Class SAS <button class="copy-btn" onclick="copy('Summer Class SAS',this)">Copiar</button></div></div>
+    </div>
+
+    <div class="form-group">
+      <label>Comprobante de pago · <strong style="color:var(--cyan);" id="amountToTransfer">$10.000</strong></label>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('receiptFile').click()">
+        <div class="icon">📷</div>
+        <p><strong>Toca para subir</strong> el comprobante</p>
+        <p style="font-size:11px;margin-top:4px;">Máximo 5MB · JPG, PNG, PDF</p>
+      </div>
+      <input type="file" id="receiptFile" accept="image/*,.pdf" style="display:none" onchange="handleFile(this)">
+      <img id="previewImg" class="preview-img" alt="Vista previa">
+    </div>
+
+    <div class="notice"><span>⏳</span><span>Tu pago quedará <strong style="color:var(--warning);">Pendiente</strong>. Cuando el admin lo apruebe, recibirás tu talonario con los bonos asignados automáticamente.</span></div>
+    <button class="btn btn-primary" id="submitBtn" onclick="submit()">Enviar a verificación →</button>
+  </div>
+  <script>
+    let selectedFile = null;
+    let studentPrice = 10000;
+    let planKey = null;
+
+    async function loadPlanConfig() {
+      try {
+        const dashRes = await fetch('/api/dashboard-data');
+        if (dashRes.ok) { const dash = await dashRes.json(); if (dash.enrollment) planKey = dash.enrollment.plan; }
+      } catch(e) {}
+      try {
+        const configRes = await fetch('/api/config');
+        const config = await configRes.json();
+        const tConfig = config.talonario;
+        const plan = planKey || 'costa_atlantica';
+        const planConfig = tConfig[plan] || tConfig.costa_atlantica;
+        studentPrice = planConfig.student_price;
+        const planNames = { san_andres: '🏝 San Andrés Islas', costa_atlantica: '🌊 Costa Atlántica' };
+        document.getElementById('planLabel').textContent = planNames[plan] || 'Talonario';
+        document.getElementById('studentPrice').textContent = '$' + studentPrice.toLocaleString('es-CO');
+        document.getElementById('amountToTransfer').textContent = '$' + studentPrice.toLocaleString('es-CO');
+        document.getElementById('bonosCount').textContent = planConfig.bonos_per_ticket;
+        document.getElementById('bonoPrice').textContent = '$' + planConfig.bono_price.toLocaleString('es-CO');
+        if (config.bankInfo) {
+          document.getElementById('bankAccount').innerHTML = config.bankInfo.account + ' <button class="copy-btn" onclick="copy(\'' + config.bankInfo.account.replace(/-/g,'') + '\',this)">Copiar</button>';
+          document.getElementById('bankHolder').innerHTML = config.bankInfo.holder + ' <button class="copy-btn" onclick="copy(\'' + config.bankInfo.holder + '\',this)">Copiar</button>';
+        }
+      } catch(e) {}
+    }
+
+    function handleFile(input) {
+      const file = input.files[0]; if (!file) return;
+      selectedFile = file;
+      const z = document.getElementById('uploadZone'); z.classList.add('active');
+      z.innerHTML = `<div class="icon">✅</div><p><strong style="color:var(--cyan)">${file.name}</strong></p><p style="font-size:11px;margin-top:4px;">${(file.size/1024).toFixed(0)} KB</p>`;
+      if (file.type.startsWith('image/')) {
+        const r = new FileReader();
+        r.onload = e => { const img = document.getElementById('previewImg'); img.src = e.target.result; img.style.display = 'block'; };
+        r.readAsDataURL(file);
+      }
+    }
+
+    async function submit() {
+      if (!selectedFile) { const al = document.getElementById('alertError'); al.textContent = 'Sube el comprobante de pago'; al.className = 'alert alert-error show'; return; }
+      const al = document.getElementById('alertError'); al.className = 'alert';
+      const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
+      const fd = new FormData();
+      fd.append('amount', studentPrice);
+      fd.append('receipt', selectedFile);
+      fd.append('type', 'talonario');
+      try {
+        const res = await fetch('/api/payments', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) window.location.href = '/pending';
+        else { al.textContent = data.error || 'Error al enviar'; al.className = 'alert alert-error show'; btn.disabled = false; btn.textContent = 'Enviar a verificación →'; }
+      } catch { al.textContent = 'Error de conexión'; al.className = 'alert alert-error show'; btn.disabled = false; btn.textContent = 'Enviar a verificación →'; }
+    }
+
+    function copy(text, btn) {
+      navigator.clipboard.writeText(text).then(() => { const o = btn.textContent; btn.textContent = '✓'; btn.style.color = 'var(--cyan)'; setTimeout(() => { btn.textContent = o; btn.style.color = ''; }, 1500); });
+    }
+
+    loadPlanConfig();
+  </script>
+</body>
+</html>

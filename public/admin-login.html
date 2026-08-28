@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Admin — Summer Class</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;}
+    body::before{content:'';position:fixed;top:50%;left:50%;transform:translate(-50%,-60%);width:500px;height:400px;background:radial-gradient(circle,rgba(14,165,233,.1) 0%,transparent 70%);pointer-events:none;}
+    .wrap{width:100%;max-width:360px;padding:24px 20px;text-align:center;position:relative;z-index:1;}
+    .logo-lg{font-size:1.5rem;font-weight:800;margin-bottom:4px;}
+    .tagline{font-size:13px;color:var(--text-2);margin-bottom:28px;}
+  </style>
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+</head>
+<body>
+  <div class="wrap fade-up">
+    <img src="/assets/logo-nav.png" alt="Summer Class" style="height:60px;width:auto;display:block;margin:0 auto 4px;">
+    <div class="tagline">Panel de administración</div>
+    <div class="card" style="text-align:left;">
+      <div class="alert alert-error" id="alert"></div>
+      <div class="form-group"><label for="email">Correo de administrador</label><input type="email" id="email" placeholder="admin@colegio.edu" autocomplete="email"></div>
+      <div class="form-group"><label for="password">Contraseña de administrador</label><input type="password" id="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></div>
+      <button class="btn btn-primary" onclick="login()">Entrar →</button>
+    </div>
+  </div>
+  <script>
+    async function login(){
+      const pw=document.getElementById('password').value, email=document.getElementById('email').value.trim(); const al=document.getElementById('alert'); al.className='alert'; if(!pw||!email)return;
+      const res=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});
+      const data=await res.json();
+      if(data.success) window.location.href=data.redirect;
+      else { al.textContent=data.error; al.className='alert alert-error show'; }
+    }
+  </script>
+</body>
+</html>
