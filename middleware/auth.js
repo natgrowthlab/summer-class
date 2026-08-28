@@ -9,6 +9,17 @@ function requireStudent(req, res, next) {
 }
 
 function requireRole(...roles) {
-  return (req, res, next) => req.session?.adminUser && roles.includes(req.session.adminUser.role) ? next() : res.status(403).json({ error: 'No tienes permiso para esta acción.' });
+  return async (req, res, next) => {
+    const email = req.session?.adminUser?.email;
+    if (!email) return res.status(403).json({ error: 'No tienes permiso para esta acción.' });
+    try {
+      const [users] = await pool.query('SELECT role FROM admin_users WHERE email=?', [email]);
+      if (roles.includes(users[0]?.role)) return next();
+      res.status(403).json({ error: 'No tienes permiso para esta acción.' });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 module.exports = { requireAdmin, requireRole, requireStudent };
+const { pool } = require('../lib/db');
