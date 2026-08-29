@@ -6,6 +6,8 @@ const { requireStudent } = require('../middleware/auth');
 const { PLAN_NAMES, PLAN_COSTS, TALONARIO_CONFIG, calcDebt } = require('../lib/helpers');
 const path = require('path');
 const { sendEmail } = require('../lib/email');
+const { getTelegramConfig, sendLiquidationNotification } = require('../lib/telegram');
+const { getStudentLiquidationSummary, createLiquidationRequest, cancelLiquidationRequest, saveLiquidationTelegramMessage } = require('../lib/liquidations');
 
 // ── Landing ──────────────────────────────────────────────────
 router.get('/', (req, res) => {
@@ -229,6 +231,40 @@ router.get('/api/bonos/my', requireStudent, async (req, res) => {
     [talRows[0].id]
   );
   res.json({ talonario_number: talRows[0].ticket_number, bonos: bonosRows });
+});
+
+// ── API: saldo de bonos y solicitud de liquidación ───────────
+router.get('/api/bonos/liquidation-summary', requireStudent, async (req, res) => {
+  const summary = await getStudentLiquidationSummary(req.session.studentId);
+  res.json(summary);
+});
+
+router.post('/api/bonos/liquidate', requireStudent, async (req, res) => {
+  const telegram = await getTelegramConfig();
+  if (!telegram.botToken || !telegram.chatId) {
+    return res.status(503).json({ error: 'Las liquidaciones aún no están conectadas a Telegram. Contacta al administrador.' });
+  }
+
+  const [students] = await pool.query('SELECT first_name,last_name,phone,school FROM students WHERE id=?', [req.session.studentId]);
+  if (!students[0]) return res.status(404).json({ error: 'Estudiante no encontrado.' });
+
+  const result = await createLiquidationRequest(req.session.studentId);
+  if (result.error) return res.status(400).json({ error: result.error });
+
+  try {
+    const messageId = await sendLiquidationNotification({
+      liquidation: result.liquidation,
+      student: students[0],
+      ticket: result.ticket
+    });
+    if (!messageId) throw new Error('Telegram no está disponible.');
+    await saveLiquidationTelegramMessage(result.liquidation.id, messageId);
+    return res.json({ success: true, amount: result.liquidation.amount, message: 'Solicitud enviada a aprobación por Telegram.' });
+  } catch (error) {
+    await cancelLiquidationRequest(result.liquidation.id);
+    console.error('Liquidation Telegram notification failed:', error.message);
+    return res.status(503).json({ error: 'No se pudo enviar la liquidación a Telegram. Inténtalo de nuevo en unos minutos.' });
+  }
 });
 
 // ── API: asignar comprador a bono ─────────────────────────────

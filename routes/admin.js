@@ -87,6 +87,12 @@ router.get('/api/summary', requireAdmin, async (req, res) => {
   const [paymentsInfo] = await pool.query(
     `SELECT COUNT(*) as count, COALESCE(SUM(amount),0) as total FROM payments WHERE status='approved'`
   );
+  const [liquidationInfo] = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE status='pending') AS pending_count,
+            COUNT(*) FILTER (WHERE status='approved') AS approved_count,
+            COALESCE(SUM(amount) FILTER (WHERE status='approved'),0) AS approved_total
+     FROM bonus_liquidations`
+  );
   const [enrollRows] = await pool.query(
     `SELECT plan, COUNT(*) as count FROM enrollments WHERE status='active' GROUP BY plan`
   );
@@ -104,7 +110,10 @@ router.get('/api/summary', requireAdmin, async (req, res) => {
   res.json({
     totalStudents: parseInt(studentsRows[0].count),
     approvedPayments: parseInt(paymentsInfo[0].count),
-    totalCollected: parseInt(paymentsInfo[0].total),
+    totalCollected: parseInt(paymentsInfo[0].total) + parseInt(liquidationInfo[0].approved_total || 0),
+    pendingLiquidations: parseInt(liquidationInfo[0].pending_count || 0),
+    approvedLiquidations: parseInt(liquidationInfo[0].approved_count || 0),
+    liquidatedCollected: parseInt(liquidationInfo[0].approved_total || 0),
     enrollmentsByPlan: enrollRows,
     pendingPayments: pendingRows
   });
@@ -118,6 +127,18 @@ router.post('/api/payments/:id/:action', requireRole('owner', 'manager'), async 
   const result = await processPaymentDecision(id, action);
   if (result.error) return res.status(400).json({ error: result.error });
   res.json(result);
+});
+
+// Las liquidaciones se aprueban exclusivamente desde los botones de Telegram.
+router.get('/api/liquidations', requireAdmin, async (req, res) => {
+  const [liquidations] = await pool.query(
+    `SELECT bl.*, tc.ticket_number, tc.plan, s.first_name, s.last_name, s.school
+     FROM bonus_liquidations bl
+     JOIN talonario_catalog tc ON tc.id=bl.talonario_id
+     LEFT JOIN students s ON s.id=bl.student_id
+     ORDER BY CASE bl.status WHEN 'pending' THEN 0 ELSE 1 END, bl.created_at DESC`
+  );
+  res.json({ liquidations });
 });
 
 // ── API: lista estudiantes ────────────────────────────────────
@@ -204,7 +225,7 @@ router.get('/api/talonarios', requireAdmin, async (req, res) => {
            s.first_name, s.last_name,
            (SELECT COUNT(*) FROM bonos WHERE talonario_id=tc.id) as bono_count,
            (SELECT COUNT(*) FROM bonos WHERE talonario_id=tc.id AND buyer_name IS NOT NULL) as vendidos,
-           (SELECT COALESCE(SUM(total_paid),0) FROM bonos WHERE talonario_id=tc.id) as recaudado
+           (SELECT COALESCE(SUM(amount),0) FROM bonus_liquidations WHERE talonario_id=tc.id AND status='approved') as recaudado
     FROM talonario_catalog tc
     LEFT JOIN students s ON s.id=tc.assigned_to
     ORDER BY tc.plan, tc.ticket_number`

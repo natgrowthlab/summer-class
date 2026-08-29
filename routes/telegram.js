@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { answerCallbackQuery, editMessageAfterAction, getTelegramConfig } = require('../lib/telegram');
 const { processPaymentDecision } = require('../lib/paymentActions');
+const { processLiquidationDecision } = require('../lib/liquidations');
 
 router.post('/webhook', async (req, res) => {
   const telegram = await getTelegramConfig();
@@ -11,11 +12,15 @@ router.post('/webhook', async (req, res) => {
   const query = update?.callback_query;
   if (!query) return res.json({ ok: true });
 
-  const [action, paymentId] = (query.data || '').split('_');
-  if (!paymentId || !['approve', 'reject'].includes(action)) return res.json({ ok: true });
+  const [action, targetId] = (query.data || '').split('_');
+  const isLiquidation = ['liqapprove', 'liqreject'].includes(action);
+  if (!targetId || (!isLiquidation && !['approve', 'reject'].includes(action))) return res.json({ ok: true });
 
   try {
-    const result = await processPaymentDecision(paymentId, action);
+    const decisionAction = action === 'liqapprove' ? 'approve' : action === 'liqreject' ? 'reject' : action;
+    const result = isLiquidation
+      ? await processLiquidationDecision(targetId, decisionAction)
+      : await processPaymentDecision(targetId, decisionAction);
     if (result.error) {
       console.warn('Telegram approval skipped:', result.error);
       await answerCallbackQuery(query.id, { text: result.error, showAlert: true });
@@ -23,7 +28,9 @@ router.post('/webhook', async (req, res) => {
     }
 
     try {
-      await answerCallbackQuery(query.id, { text: result.warning || (action === 'approve' ? 'Pago aprobado' : 'Pago rechazado'), showAlert: Boolean(result.warning) });
+      const approvedText = isLiquidation ? 'Liquidación aprobada' : 'Pago aprobado';
+      const rejectedText = isLiquidation ? 'Liquidación rechazada' : 'Pago rechazado';
+      await answerCallbackQuery(query.id, { text: result.warning || (decisionAction === 'approve' ? approvedText : rejectedText), showAlert: Boolean(result.warning) });
       await editMessageAfterAction({
         chatId: query.message.chat.id,
         messageId: query.message.message_id,

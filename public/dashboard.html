@@ -30,6 +30,8 @@
     .pending-box { background:var(--warning-bg); border:1px solid rgba(251,191,36,.25); border-radius:var(--radius-md); padding:18px; text-align:center; margin:12px 0; }
     .buyer-card { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:10px; }
     .buyer-name { font-weight:700; font-size:14px; font-family:var(--font-title); margin-bottom:8px; }
+    .liquidation-card { background:linear-gradient(135deg,rgba(8,125,163,.15),rgba(255,255,255,.54)); border:1px solid rgba(8,125,163,.28); border-radius:var(--radius-xl); padding:18px; margin-bottom:14px; }
+    .liquidation-amount { font:900 1.65rem var(--font-title); color:var(--cyan); letter-spacing:-.06em; }
   </style>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
@@ -129,6 +131,15 @@
             <div class="stat-card" style="flex:1;padding:12px;"><div class="stat-value" id="totalRecolectado" style="font-size:1.2rem;">$0</div><div class="stat-label">Recolectado</div></div>
           </div>
         </div>
+        <div class="liquidation-card fade-up" id="liquidationCard">
+          <div class="section-label">Liquidación de bonos</div>
+          <h3 style="margin:4px 0 6px;">Transfiere el recaudo a Summer Class</h3>
+          <p style="font-size:12px;margin-bottom:12px;">Bancolombia Cuenta Ahorros 70600002695 · Summer Class SAS<br>Llave @summerclass · Summer Class SAS</p>
+          <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;">
+            <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:700;">Disponible para liquidar</div><div class="liquidation-amount" id="liquidationAvailable">$0</div><div id="liquidationStatus" style="font-size:11px;color:var(--text-2);margin-top:3px;"></div></div>
+            <button class="btn btn-primary btn-sm" id="liquidateBtn" type="button" onclick="requestLiquidation()">Liquidar bonos</button>
+          </div>
+        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <h3>Mis Bonos</h3>
           <a href="/talonario" class="btn btn-outline btn-sm" style="width:auto;">Ver detalles →</a>
@@ -143,6 +154,30 @@
     const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
     const planNames={san_andres:'San Andrés',costa_atlantica:'Costa Atlántica'};
     const statusLabels={pending:'Pendiente',approved:'Aprobado',rejected:'Rechazado'};
+
+    async function loadLiquidationSummary(){
+      try{
+        const res=await fetch('/api/bonos/liquidation-summary'); if(!res.ok) return;
+        const data=await res.json(); const ticket=(data.tickets||[])[0];
+        document.getElementById('liquidationAvailable').textContent=fmtCOP(data.totalAvailable||0);
+        const status=document.getElementById('liquidationStatus');
+        const button=document.getElementById('liquidateBtn');
+        if(ticket?.pending_amount){status.textContent=`Solicitud en aprobación: ${fmtCOP(ticket.pending_amount)}`;button.disabled=true;button.textContent='En aprobación';}
+        else if(!(data.totalAvailable>0)){status.textContent='Registra cuotas pagadas para habilitar una liquidación.';button.disabled=true;button.textContent='Sin saldo disponible';}
+        else {status.textContent='La solicitud se envía directamente a Telegram para aprobación.';button.disabled=false;button.textContent='Liquidar bonos';}
+      }catch(_){}
+    }
+
+    async function requestLiquidation(){
+      const button=document.getElementById('liquidateBtn');
+      if(!confirm('Confirma que ya transferiste el dinero a las cuentas de Summer Class. La liquidación se enviará a Telegram para aprobación.')) return;
+      button.disabled=true; button.innerHTML='<span class="spinner"></span> Enviando...';
+      try{
+        const res=await fetch('/api/bonos/liquidate',{method:'POST'}); const data=await res.json();
+        if(!data.success) throw new Error(data.error||'No se pudo enviar la solicitud.');
+        await loadLiquidationSummary();
+      }catch(error){alert(error.message);button.disabled=false;button.textContent='Liquidar bonos';}
+    }
 
     async function load(){
       try{
@@ -208,6 +243,7 @@
       bonosArr.forEach(b=>{ if(b.buyer_name){ vendidos++; } total+=parseInt(b.total_paid||0); });
       document.getElementById('bonosVendidos').textContent=vendidos+'/'+bonosArr.length;
       document.getElementById('totalRecolectado').textContent=fmtCOP(total);
+      loadLiquidationSummary();
       const c=document.getElementById('bonosList');
       if(!bonosArr.length){c.innerHTML='<p style="color:var(--text-2);font-size:13px;">Sin bonos asignados</p>';return;}
       c.innerHTML=bonosArr.slice(0,3).map(b=>`
