@@ -9,6 +9,47 @@ const { processPaymentDecision } = require('../lib/paymentActions');
 const { getTelegramConfig, saveTelegramConfig, setWebhook } = require('../lib/telegram');
 const crypto = require('crypto');
 const path = require('path');
+const multer = require('multer');
+const ExcelJS = require('exceljs');
+
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(file.originalname.toLowerCase().endsWith('.xlsx') ? null : new Error('Solo se permiten archivos .xlsx'), file.originalname.toLowerCase().endsWith('.xlsx'))
+});
+const TALONARIO_PLANS = new Set(['costa_atlantica', 'san_andres']);
+const planFromSheetName = name => /san\s*andres/i.test(name) ? 'san_andres' : /costa/i.test(name) ? 'costa_atlantica' : null;
+
+async function parseTicketWorkbook(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const talonarios = [];
+  const seen = new Set();
+  const ignored = [];
+
+  workbook.eachSheet(sheet => {
+    const plan = planFromSheetName(sheet.name);
+    if (!plan) { ignored.push(sheet.name); return; }
+
+    for (let column = 1; column <= sheet.columnCount; column++) {
+      const ticketCandidates = [];
+      const bonos = [];
+      for (let row = 1; row <= sheet.rowCount; row++) {
+        const text = String(sheet.getCell(row, column).text || '').trim();
+        if (/^\d{1,3}$/.test(text)) ticketCandidates.push(Number(text));
+        if (/^\d{4}$/.test(text)) bonos.push(Number(text));
+      }
+      const ticketNumber = ticketCandidates.at(-1);
+      if (!ticketNumber || !bonos.length) continue;
+      const key = `${plan}:${ticketNumber}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      talonarios.push({ plan, ticket_number: ticketNumber, bonos: [...new Set(bonos)] });
+    }
+  });
+  if (!talonarios.length) throw new Error('No se encontraron talonarios ni boletas de cuatro cifras en el archivo.');
+  return { talonarios, ignored };
+}
 
 // ── Login ─────────────────────────────────────────────────────
 router.get('/login', (req, res) => {
@@ -166,7 +207,7 @@ router.get('/api/talonarios', requireAdmin, async (req, res) => {
            (SELECT COALESCE(SUM(total_paid),0) FROM bonos WHERE talonario_id=tc.id) as recaudado
     FROM talonario_catalog tc
     LEFT JOIN students s ON s.id=tc.assigned_to
-    ORDER BY tc.ticket_number`
+    ORDER BY tc.plan, tc.ticket_number`
   );
   res.json({ talonarios: rows });
 });
@@ -174,18 +215,19 @@ router.get('/api/talonarios', requireAdmin, async (req, res) => {
 // ── POST: crear talonario manualmente ─────────────────────────
 router.post('/api/talonarios', requireAdmin, async (req, res) => {
   const { ticket_number, bonos } = req.body;
+  const plan = TALONARIO_PLANS.has(req.body.plan) ? req.body.plan : 'costa_atlantica';
   if (!ticket_number || !bonos || !bonos.length)
     return res.status(400).json({ error: 'Número de talonario y bonos requeridos' });
 
   const talonarioId = uuidv4();
   try {
-    await pool.query('INSERT INTO talonario_catalog (id, ticket_number) VALUES (?,?)', [talonarioId, ticket_number]);
+    await pool.query('INSERT INTO talonario_catalog (id, ticket_number, plan) VALUES (?,?,?)', [talonarioId, ticket_number, plan]);
     for (const bonoNumber of bonos) {
       await pool.query('INSERT INTO bonos (id, talonario_id, bono_number) VALUES (?,?,?)', [uuidv4(), talonarioId, bonoNumber]);
     }
     res.json({ success: true, talonario_id: talonarioId });
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: `Talonario #${ticket_number} ya existe` });
+    if (err.code === 'ER_DUP_ENTRY' || err.code === '23505') return res.status(400).json({ error: `Talonario #${ticket_number} ya existe para ese plan` });
     console.error(err);
     // Limpieza si quedó a medias
     await pool.query('DELETE FROM talonario_catalog WHERE id=?', [talonarioId]).catch(() => {});
@@ -200,11 +242,12 @@ router.post('/api/talonarios/bulk', requireAdmin, async (req, res) => {
 
   let created = 0, skipped = 0;
   for (const t of talonarios) {
+    const plan = TALONARIO_PLANS.has(t.plan) ? t.plan : 'costa_atlantica';
     const talonarioId = uuidv4();
     try {
       const [result] = await pool.query(
-        'INSERT IGNORE INTO talonario_catalog (id, ticket_number) VALUES (?,?)',
-        [talonarioId, t.ticket_number]
+        'INSERT IGNORE INTO talonario_catalog (id, ticket_number, plan) VALUES (?,?,?)',
+        [talonarioId, t.ticket_number, plan]
       );
       if (result.affectedRows === 0) { skipped++; continue; } // ya existía ese ticket_number
       for (const bonoNumber of (t.bonos || [])) {
@@ -215,6 +258,42 @@ router.post('/api/talonarios/bulk', requireAdmin, async (req, res) => {
   }
 
   res.json({ success: true, created, skipped });
+});
+
+// ── POST: importar base de boletas desde Excel ────────────────
+router.post('/api/talonarios/import-excel', requireAdmin, excelUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Selecciona un archivo Excel (.xlsx).' });
+  try {
+    const { talonarios, ignored } = await parseTicketWorkbook(req.file.buffer);
+    let created = 0, skipped = 0, bonosCreated = 0;
+
+    for (let start = 0; start < talonarios.length; start += 20) {
+      const batch = talonarios.slice(start, start + 20).map(ticket => ({ ...ticket, id: uuidv4() }));
+      const values = batch.flatMap(ticket => [ticket.id, ticket.ticket_number, ticket.plan]);
+      const placeholders = batch.map(() => '(?,?,?)').join(',');
+      const [inserted] = await pool.query(
+        `INSERT INTO talonario_catalog (id,ticket_number,plan) VALUES ${placeholders}
+         ON CONFLICT (plan,ticket_number) DO NOTHING RETURNING id,ticket_number,plan`,
+        values
+      );
+      const insertedKeys = new Set(inserted.map(ticket => `${ticket.plan}:${ticket.ticket_number}`));
+      const newTickets = batch.filter(ticket => insertedKeys.has(`${ticket.plan}:${ticket.ticket_number}`));
+      created += newTickets.length;
+      skipped += batch.length - newTickets.length;
+
+      const bonoValues = newTickets.flatMap(ticket => ticket.bonos.flatMap(number => [uuidv4(), ticket.id, number]));
+      if (bonoValues.length) {
+        const bonoPlaceholders = Array.from({ length: bonoValues.length / 3 }, () => '(?,?,?)').join(',');
+        await pool.query(`INSERT INTO bonos (id,talonario_id,bono_number) VALUES ${bonoPlaceholders}`, bonoValues);
+        bonosCreated += bonoValues.length / 3;
+      }
+    }
+
+    res.json({ success: true, created, skipped, bonosCreated, ignored });
+  } catch (error) {
+    console.error('Excel ticket import failed:', error.message);
+    res.status(400).json({ error: error.message || 'No se pudo importar el archivo.' });
+  }
 });
 
 // ── DELETE: eliminar talonario ────────────────────────────────

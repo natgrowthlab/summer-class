@@ -79,11 +79,17 @@
         <div class="alert alert-success" id="talonarioSuccess"></div>
         <div class="input-row" style="margin-bottom:10px;">
           <div class="form-group" style="margin:0;flex:0 0 120px;"><label># Talonario</label><input type="number" id="newTicketNum" placeholder="231" min="1"></div>
+          <div class="form-group" style="margin:0;flex:0 0 160px;"><label>Plan</label><select id="newTicketPlan"><option value="costa_atlantica">Costa Atlántica</option><option value="san_andres">San Andrés</option></select></div>
           <div class="form-group" style="margin:0;flex:1;"><label>Números de bonos (separados por coma)</label><input type="text" id="newBonosNums" placeholder="3911, 1039, 4103"></div>
         </div>
         <button class="btn btn-primary btn-sm" style="width:auto;" onclick="createTalonario()">+ Agregar talonario</button>
 
         <div class="bulk-area">
+          <div class="section-label" style="margin-bottom:8px;">Subir base de boletas Excel</div>
+          <p style="font-size:12px;margin-bottom:10px;">Usa un archivo .xlsx con una hoja de Costa Atlántica y otra de San Andrés. Las celdas de 4 cifras se importan como boletas y el número único como talonario.</p>
+          <input type="file" id="ticketExcelFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <button class="btn btn-primary btn-sm" id="ticketExcelUploadBtn" style="width:auto;margin-top:8px;" onclick="importTicketExcel()"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#upload"/></svg>Importar Excel</button>
+          <div class="divider"></div>
           <div class="section-label" style="margin-bottom:8px;">Importar desde Excel / JSON</div>
           <p style="font-size:12px;margin-bottom:10px;">Pega el JSON con el formato: <code style="color:var(--cyan);font-size:11px;">[{"ticket_number":231,"bonos":[3911,1039,4103]},...]</code></p>
           <textarea id="bulkJson" rows="4" placeholder='[{"ticket_number":231,"bonos":[3911,1039,4103]}]' style="font-size:12px;font-family:monospace;"></textarea>
@@ -267,6 +273,7 @@
           <div>
             <div class="talonario-num">Talonario #${t.ticket_number}</div>
             <div style="font-size:11px;color:var(--text-2);margin:4px 0;">
+              <span class="badge badge-blue">${planNames[t.plan]||t.plan||'Costa Atlántica'}</span>
               ${t.is_assigned ? `<span class="badge badge-approved">Asignado a ${t.first_name||'?'} ${t.last_name||''}</span>` : '<span class="badge badge-blue">Disponible</span>'}
             </div>
           </div>
@@ -281,6 +288,7 @@
 
   async function createTalonario(){
     const num=document.getElementById('newTicketNum').value.trim();
+    const plan=document.getElementById('newTicketPlan').value;
     const bonosStr=document.getElementById('newBonosNums').value.trim();
     const al=document.getElementById('talonarioAlert'); al.className='alert';
     const su=document.getElementById('talonarioSuccess'); su.className='alert';
@@ -289,7 +297,7 @@
     const bonos=bonosStr.split(',').map(b=>parseInt(b.trim())).filter(b=>!isNaN(b));
     if(bonos.length===0){ al.textContent='Ingresa al menos un número de bono válido'; al.className='alert alert-error show'; return; }
     try{
-      const res=await fetch('/admin/api/talonarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_number:parseInt(num),bonos})});
+      const res=await fetch('/admin/api/talonarios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket_number:parseInt(num),plan,bonos})});
       const data=await res.json();
       if(data.success){
         su.textContent=`Talonario #${num} creado con ${bonos.length} bonos`;
@@ -299,6 +307,23 @@
         await loadTalonarios();
       } else { al.textContent=data.error||'Error'; al.className='alert alert-error show'; }
     }catch(e){ al.textContent='Error de conexión'; al.className='alert alert-error show'; }
+  }
+
+  async function importTicketExcel(){
+    const file=document.getElementById('ticketExcelFile').files[0];
+    const al=document.getElementById('talonarioAlert'); const su=document.getElementById('talonarioSuccess');
+    al.className='alert'; su.className='alert';
+    if(!file){ al.textContent='Selecciona el archivo Excel de boletas.'; al.className='alert alert-error show'; return; }
+    const button=document.getElementById('ticketExcelUploadBtn'); button.disabled=true; button.innerHTML='<span class="spinner"></span> Importando...';
+    try{
+      const form=new FormData(); form.append('file',file);
+      const res=await fetch('/admin/api/talonarios/import-excel',{method:'POST',body:form}); const data=await res.json();
+      if(data.success){
+        su.textContent=`Importados ${data.created} talonarios y ${data.bonosCreated} boletas. ${data.skipped?`${data.skipped} talonarios ya existían.`:''}`;
+        su.className='alert alert-success show'; document.getElementById('ticketExcelFile').value=''; await loadTalonarios();
+      } else { al.textContent=data.error||'No se pudo importar el archivo.'; al.className='alert alert-error show'; }
+    }catch(e){ al.textContent='Error de conexión al importar.'; al.className='alert alert-error show'; }
+    button.disabled=false; button.innerHTML='<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#upload"/></svg>Importar Excel';
   }
 
   async function importBulk(){
