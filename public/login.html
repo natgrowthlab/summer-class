@@ -1,58 +1,12 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Iniciar sesión — Summer Class</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <style>
-    body { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; position:relative; }
-    body::after { content:''; position:fixed; top:50%; left:50%; transform:translate(-50%,-60%); width:500px; height:400px; background:radial-gradient(circle,rgba(14,165,233,.1) 0%,transparent 70%); pointer-events:none; z-index:0; }
-    .wrap { width:100%; max-width:380px; position:relative; z-index:1; }
-    .logo-top { text-align:center; margin-bottom:28px; }
-    .logo-top a { font-size:11px; color:var(--text-3); text-decoration:none; display:flex; align-items:center; gap:4px; justify-content:center; margin-bottom:16px; }
-    .logo-top h2 { font-size:1.4rem; margin-bottom:4px; }
-    .logo-top p { font-size:13px; }
-  </style>
-  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-</head>
-<body>
-  <div class="wrap fade-up">
-    <div class="logo-top">
-      <a href="/">← Volver</a>
-      <img src="/assets/logo-nav.png" alt="Summer Class" style="height:64px;width:auto;display:block;margin:0 auto;">
-      <p>Ingresa con tu correo registrado</p>
-    </div>
-    <div class="card">
-      <div class="alert alert-error" id="alert"></div>
-      <div class="form-group"><label>Correo electrónico</label><input type="email" id="email" placeholder="tu@gmail.com" autocomplete="email" onkeydown="if(event.key==='Enter')login()"></div>
-      <button class="btn btn-primary" onclick="login()" id="loginBtn">Entrar →</button>
-    </div>
-    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-3);">
-      ¿Sin cuenta? <a href="/registro" style="color:var(--cyan);text-decoration:none;font-weight:600;">Regístrate aquí</a>
-    </p>
-    <button class="btn btn-ghost btn-sm" type="button" style="margin-top:12px;" onclick="requestAccess()">Enviar enlace seguro a mi correo</button>
-  </div>
-  <script>
-    async function login(){
-      const email=document.getElementById('email').value.trim();
-      const al=document.getElementById('alert'); al.className='alert';
-      if(!email){ al.textContent='Ingresa tu correo'; al.className='alert alert-error show'; return; }
-      const btn=document.getElementById('loginBtn'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
-      try{
-        const res=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-        const data=await res.json();
-        if(data.success) window.location.href=data.redirect;
-        else{ al.textContent=data.error||'Correo no encontrado. ¿Ya tienes cuenta?'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Entrar →'; }
-      }catch{ al.textContent='Error de conexión'; al.className='alert alert-error show'; btn.disabled=false; btn.textContent='Entrar →'; }
-    }
-    async function requestAccess(){
-      const email=document.getElementById('email').value.trim(), al=document.getElementById('alert');
-      if(!email){al.textContent='Ingresa tu correo primero';al.className='alert alert-error show';return;}
-      const res=await fetch('/request-access',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}); const data=await res.json();
-      al.textContent=data.message; al.className='alert alert-success show';
-    }
-  </script>
-</body>
-</html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>Acceso — Summer Class</title><link rel="stylesheet" href="/css/style.css"><style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}.wrap{width:100%;max-width:460px}.logo-top{text-align:center;margin-bottom:24px}.logo-top a{display:inline-flex;color:var(--text-3);font-size:12px;text-decoration:none;margin-bottom:16px}.logo-top img{height:60px;width:auto;display:block;margin:0 auto 10px}.mode-tabs{display:grid;grid-template-columns:1fr 1fr;padding:4px;gap:5px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:16px;margin-bottom:16px}.mode-tab{border:0;background:transparent;color:var(--text-2);border-radius:12px;min-height:42px;cursor:pointer;font-weight:700}.mode-tab.active{background:#172238;color:#fff}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:400px){.two-col{grid-template-columns:1fr}}</style><link rel="icon" href="/assets/favicon.ico"></head>
+<body><main class="wrap fade-up"><div class="logo-top"><a href="/">← Volver a Summer Class</a><img src="/assets/logo-nav.png" alt="Summer Class"><p id="modeSubtitle">Ingresa con tu correo registrado</p></div><div class="mode-tabs"><button class="mode-tab active" id="loginTab" type="button" onclick="setMode('login')">Ingresar</button><button class="mode-tab" id="registerTab" type="button" onclick="setMode('register')">Crear cuenta</button></div>
+<section class="card" id="loginPanel"><div class="alert alert-error" id="loginAlert"></div><div class="form-group"><label for="loginEmail">Correo electrónico</label><input type="email" id="loginEmail" placeholder="tu@gmail.com" autocomplete="email"></div><button class="btn btn-primary" type="button" id="loginBtn" onclick="login()">Entrar</button><button class="btn btn-ghost btn-sm" type="button" style="margin-top:10px" onclick="requestAccess()">Enviar enlace seguro a mi correo</button></section>
+<section class="card" id="registerPanel" style="display:none"><div class="alert alert-error" id="registerAlert"></div><div class="form-group"><label for="registerEmail">Correo electrónico</label><input type="email" id="registerEmail" autocomplete="email" placeholder="tu@gmail.com"></div><div class="two-col"><div class="form-group"><label for="registerFirstName">Nombre</label><input id="registerFirstName" type="text"></div><div class="form-group"><label for="registerLastName">Apellidos</label><input id="registerLastName" type="text"></div></div><div class="form-group"><label for="registerPhone">WhatsApp / celular</label><input id="registerPhone" type="tel" placeholder="300 123 4567"></div><div class="two-col"><div class="form-group"><label for="registerGrade">Grado</label><select id="registerGrade"><option value="">Selecciona</option><option value="9">9</option><option value="10">10</option><option value="11">11</option></select></div><div class="form-group"><label for="registerGroup">Grupo</label><select id="registerGroup"><option value="">Selecciona</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></div></div><div class="two-col"><div class="form-group"><label for="registerCity">Ciudad</label><input id="registerCity" type="text"></div><div class="form-group"><label for="registerSchool">Colegio</label><input id="registerSchool" type="text"></div></div><button class="btn btn-primary" type="button" id="registerBtn" onclick="register()">Crear cuenta y continuar</button></section></main>
+<script>
+function setMode(mode){const r=mode==='register';loginPanel.style.display=r?'none':'block';registerPanel.style.display=r?'block':'none';loginTab.classList.toggle('active',!r);registerTab.classList.toggle('active',r);modeSubtitle.textContent=r?'Regístrate para elegir tu excursión':'Ingresa con tu correo registrado';history.replaceState({},'',r?'/login?mode=register':'/login')}
+async function login(){const email=loginEmail.value.trim(),a=loginAlert,b=loginBtn;a.className='alert';if(!email){a.textContent='Ingresa tu correo';a.className='alert alert-error show';return}b.disabled=true;b.innerHTML='<span class="spinner"></span>';try{const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}),d=await r.json();if(d.success)location.href=d.redirect;else{a.textContent=d.error||'No pudimos ingresar.';a.className='alert alert-error show';b.disabled=false;b.textContent='Entrar'}}catch(_){a.textContent='Error de conexión';a.className='alert alert-error show';b.disabled=false;b.textContent='Entrar'}}
+async function register(){const ids={email:'registerEmail',first_name:'registerFirstName',last_name:'registerLastName',phone:'registerPhone',city:'registerCity',school:'registerSchool'},p=Object.fromEntries(Object.entries(ids).map(([k,id])=>[k,document.getElementById(id).value.trim()]));p.grade=`${registerGrade.value}-${registerGroup.value}`;const a=registerAlert,b=registerBtn;a.className='alert';if(Object.values(p).some(v=>!v||v==='-')){a.textContent='Completa todos los datos.';a.className='alert alert-error show';return}b.disabled=true;b.innerHTML='<span class="spinner"></span>';try{const r=await fetch('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}),d=await r.json();if(d.success)location.href=d.redirect;else{a.textContent=d.error||'No pudimos crear la cuenta.';a.className='alert alert-error show';b.disabled=false;b.textContent='Crear cuenta y continuar'}}catch(_){a.textContent='Error de conexión';a.className='alert alert-error show';b.disabled=false;b.textContent='Crear cuenta y continuar'}}
+async function requestAccess(){const email=loginEmail.value.trim();if(!email){loginAlert.textContent='Ingresa tu correo primero';loginAlert.className='alert alert-error show';return}const r=await fetch('/request-access',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})}),d=await r.json();loginAlert.textContent=d.message;loginAlert.className='alert alert-success show'}
+if(new URLSearchParams(location.search).get('mode')==='register')setMode('register');
+</script></body></html>

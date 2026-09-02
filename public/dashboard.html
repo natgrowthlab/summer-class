@@ -149,6 +149,19 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="liquidationModal" role="dialog" aria-modal="true" aria-labelledby="liquidationModalTitle">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h3 id="liquidationModalTitle">Liquidar bonos</h3>
+      <p style="font-size:13px;color:var(--text-2);margin:6px 0 16px;">Transfiere el monto disponible a Summer Class y adjunta el comprobante. La aprobación se envía a Telegram.</p>
+      <div class="bank-card" style="margin-bottom:16px;"><div class="bank-row"><div class="bank-label">Bancolombia</div><div class="bank-value">Ahorros 70600002695</div></div><div class="bank-row"><div class="bank-label">Llave</div><div class="bank-value">@summerclass</div></div><div class="bank-row"><div class="bank-label">Titular</div><div class="bank-value">Summer Class SAS</div></div></div>
+      <div class="alert alert-error" id="liquidationAlert"></div>
+      <div class="form-group"><label for="liquidationReceipt">Comprobante de transferencia</label><input type="file" id="liquidationReceipt" accept="image/*,.pdf"></div>
+      <button class="btn btn-primary" id="liquidationSubmitBtn" type="button" onclick="submitLiquidation()">Enviar a aprobación</button>
+      <button class="btn btn-ghost" type="button" onclick="closeLiquidationModal()" style="margin-top:8px;">Cancelar</button>
+    </div>
+  </div>
+
   <script>
     const fmtCOP=n=>'$'+Number(n).toLocaleString('es-CO');
     const fmtDate=d=>new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
@@ -169,15 +182,26 @@
     }
 
     async function requestLiquidation(){
-      const button=document.getElementById('liquidateBtn');
-      if(!confirm('Confirma que ya transferiste el dinero a las cuentas de Summer Class. La liquidación se enviará a Telegram para aprobación.')) return;
-      button.disabled=true; button.innerHTML='<span class="spinner"></span> Enviando...';
-      try{
-        const res=await fetch('/api/bonos/liquidate',{method:'POST'}); const data=await res.json();
-        if(!data.success) throw new Error(data.error||'No se pudo enviar la solicitud.');
-        await loadLiquidationSummary();
-      }catch(error){alert(error.message);button.disabled=false;button.textContent='Liquidar bonos';}
+      document.getElementById('liquidationAlert').className='alert';
+      document.getElementById('liquidationReceipt').value='';
+      document.getElementById('liquidationModal').classList.add('open');
     }
+
+    function closeLiquidationModal(){document.getElementById('liquidationModal').classList.remove('open');}
+    async function submitLiquidation(){
+      const file=document.getElementById('liquidationReceipt').files[0];
+      const alertBox=document.getElementById('liquidationAlert');
+      if(!file){alertBox.textContent='Adjunta el comprobante de transferencia.';alertBox.className='alert alert-error show';return;}
+      const button=document.getElementById('liquidationSubmitBtn'); button.disabled=true; button.innerHTML='<span class="spinner"></span> Enviando...';
+      try{
+        const form=new FormData(); form.append('receipt',file);
+        const res=await fetch('/api/bonos/liquidate',{method:'POST',body:form}); const data=await res.json();
+        if(!data.success) throw new Error(data.error||'No se pudo enviar la solicitud.');
+        closeLiquidationModal();
+        await loadLiquidationSummary();
+      }catch(error){alertBox.textContent=error.message;alertBox.className='alert alert-error show';button.disabled=false;button.textContent='Enviar a aprobación';}
+    }
+    document.getElementById('liquidationModal').addEventListener('click',event=>{if(event.target.id==='liquidationModal')closeLiquidationModal();});
 
     async function load(){
       try{

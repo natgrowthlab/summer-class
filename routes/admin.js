@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
+const EXCURSION_PLANS = ['costa_atlantica', 'san_andres'];
 
 const excelUpload = multer({
   storage: multer.memoryStorage(),
@@ -96,6 +97,30 @@ router.get('/api/summary', requireAdmin, async (req, res) => {
   const [enrollRows] = await pool.query(
     `SELECT plan, COUNT(*) as count FROM enrollments WHERE status='active' GROUP BY plan`
   );
+  const [paymentsByPlan] = await pool.query(
+    `SELECT e.plan, COALESCE(SUM(p.amount) FILTER (WHERE p.status='approved'),0) AS collected,
+            COUNT(p.id) FILTER (WHERE p.status='approved') AS approved_payments
+     FROM enrollments e
+     LEFT JOIN payments p ON p.enrollment_id=e.id
+     WHERE e.plan IN ('costa_atlantica','san_andres')
+     GROUP BY e.plan`
+  );
+  const [liquidationsByPlan] = await pool.query(
+    `SELECT tc.plan, COALESCE(SUM(bl.amount) FILTER (WHERE bl.status='approved'),0) AS collected,
+            COUNT(bl.id) FILTER (WHERE bl.status='pending') AS pending_liquidations
+     FROM talonario_catalog tc
+     LEFT JOIN bonus_liquidations bl ON bl.talonario_id=tc.id
+     WHERE tc.plan IN ('costa_atlantica','san_andres')
+     GROUP BY tc.plan`
+  );
+  const [ticketsByPlan] = await pool.query(
+    `SELECT plan, COUNT(*) AS tickets,
+            COUNT(*) FILTER (WHERE is_assigned=TRUE) AS assigned_tickets,
+            COUNT(*) FILTER (WHERE is_assigned=FALSE) AS available_tickets
+     FROM talonario_catalog
+     WHERE plan IN ('costa_atlantica','san_andres')
+     GROUP BY plan`
+  );
   const [pendingRows] = await pool.query(`
     SELECT p.id, p.amount, p.receipt_url, p.created_at, p.payment_type,
            s.first_name, s.last_name, s.phone, s.school,
@@ -107,6 +132,26 @@ router.get('/api/summary', requireAdmin, async (req, res) => {
     ORDER BY p.created_at ASC`
   );
 
+  const grouped = Object.fromEntries(EXCURSION_PLANS.map(plan => [plan, { plan, students: 0, paymentsCollected: 0, liquidationsCollected: 0, collected: 0, approvedPayments: 0, pendingLiquidations: 0, tickets: 0, assignedTickets: 0, availableTickets: 0 }]));
+  enrollRows.forEach(row => { if (grouped[row.plan]) grouped[row.plan].students = Number(row.count || 0); });
+  paymentsByPlan.forEach(row => {
+    if (!grouped[row.plan]) return;
+    grouped[row.plan].paymentsCollected = Number(row.collected || 0);
+    grouped[row.plan].approvedPayments = Number(row.approved_payments || 0);
+  });
+  liquidationsByPlan.forEach(row => {
+    if (!grouped[row.plan]) return;
+    grouped[row.plan].liquidationsCollected = Number(row.collected || 0);
+    grouped[row.plan].pendingLiquidations = Number(row.pending_liquidations || 0);
+  });
+  ticketsByPlan.forEach(row => {
+    if (!grouped[row.plan]) return;
+    grouped[row.plan].tickets = Number(row.tickets || 0);
+    grouped[row.plan].assignedTickets = Number(row.assigned_tickets || 0);
+    grouped[row.plan].availableTickets = Number(row.available_tickets || 0);
+  });
+  Object.values(grouped).forEach(item => { item.collected = item.paymentsCollected + item.liquidationsCollected; });
+
   res.json({
     totalStudents: parseInt(studentsRows[0].count),
     approvedPayments: parseInt(paymentsInfo[0].count),
@@ -115,6 +160,7 @@ router.get('/api/summary', requireAdmin, async (req, res) => {
     approvedLiquidations: parseInt(liquidationInfo[0].approved_count || 0),
     liquidatedCollected: parseInt(liquidationInfo[0].approved_total || 0),
     enrollmentsByPlan: enrollRows,
+    excursions: grouped,
     pendingPayments: pendingRows
   });
 });
@@ -131,12 +177,15 @@ router.post('/api/payments/:id/:action', requireRole('owner', 'manager'), async 
 
 // Las liquidaciones se aprueban exclusivamente desde los botones de Telegram.
 router.get('/api/liquidations', requireAdmin, async (req, res) => {
+  const plan = EXCURSION_PLANS.includes(req.query.plan) ? req.query.plan : null;
   const [liquidations] = await pool.query(
     `SELECT bl.*, tc.ticket_number, tc.plan, s.first_name, s.last_name, s.school
      FROM bonus_liquidations bl
      JOIN talonario_catalog tc ON tc.id=bl.talonario_id
      LEFT JOIN students s ON s.id=bl.student_id
+     ${plan ? 'WHERE tc.plan=?' : ''}
      ORDER BY CASE bl.status WHEN 'pending' THEN 0 ELSE 1 END, bl.created_at DESC`
+    , plan ? [plan] : []
   );
   res.json({ liquidations });
 });
@@ -159,6 +208,25 @@ router.get('/api/students', requireAdmin, async (req, res) => {
   }));
 
   res.json({ students });
+});
+
+router.post('/api/students', requireRole('owner', 'manager'), async (req, res) => {
+  const { email, first_name, last_name, phone, grade, city, school } = req.body;
+  if (![email, first_name, last_name, phone, grade, city, school].every(value => String(value || '').trim())) {
+    return res.status(400).json({ error: 'Completa todos los datos del estudiante.' });
+  }
+  try {
+    const id = uuidv4();
+    await pool.query(
+      'INSERT INTO students (id,email,first_name,last_name,phone,grade,city,school) VALUES (?,?,?,?,?,?,?,?)',
+      [id, email.trim().toLowerCase(), first_name.trim(), last_name.trim(), phone.trim(), grade.trim(), city.trim(), school.trim()]
+    );
+    res.json({ success: true, student: { id, email: email.trim().toLowerCase(), first_name: first_name.trim(), last_name: last_name.trim() } });
+  } catch (error) {
+    if (error.code === '23505') return res.status(400).json({ error: 'Ya existe un estudiante con ese correo.' });
+    console.error('Admin student creation failed:', error.message);
+    res.status(500).json({ error: 'No se pudo registrar el estudiante.' });
+  }
 });
 
 router.get('/api/export/students.csv', requireAdmin, async (req, res) => {
@@ -220,6 +288,7 @@ router.put('/api/integrations/telegram', requireRole('owner'), async (req, res) 
 
 // ── GET: lista de talonarios en el catálogo ───────────────────
 router.get('/api/talonarios', requireAdmin, async (req, res) => {
+  const plan = EXCURSION_PLANS.includes(req.query.plan) ? req.query.plan : null;
   const [rows] = await pool.query(`
     SELECT tc.*,
            s.first_name, s.last_name,
@@ -228,7 +297,9 @@ router.get('/api/talonarios', requireAdmin, async (req, res) => {
            (SELECT COALESCE(SUM(amount),0) FROM bonus_liquidations WHERE talonario_id=tc.id AND status='approved') as recaudado
     FROM talonario_catalog tc
     LEFT JOIN students s ON s.id=tc.assigned_to
+    ${plan ? 'WHERE tc.plan=?' : ''}
     ORDER BY tc.plan, tc.ticket_number`
+    , plan ? [plan] : []
   );
   res.json({ talonarios: rows });
 });

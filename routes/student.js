@@ -6,12 +6,19 @@ const { requireStudent } = require('../middleware/auth');
 const { PLAN_NAMES, PLAN_COSTS, TALONARIO_CONFIG, calcDebt } = require('../lib/helpers');
 const path = require('path');
 const { sendEmail } = require('../lib/email');
+const multer = require('multer');
+const { put } = require('@vercel/blob');
 const { getTelegramConfig, sendLiquidationNotification } = require('../lib/telegram');
 const { getStudentLiquidationSummary, createLiquidationRequest, cancelLiquidationRequest, saveLiquidationTelegramMessage } = require('../lib/liquidations');
 
+const liquidationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(/jpeg|jpg|png|webp|pdf/.test(file.mimetype) ? null : new Error('Solo imágenes o PDF'), /jpeg|jpg|png|webp|pdf/.test(file.mimetype))
+});
+
 // ── Landing ──────────────────────────────────────────────────
 router.get('/', (req, res) => {
-  if (req.session.studentId) return res.redirect('/dashboard');
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
@@ -66,8 +73,7 @@ router.get('/access/:token', async (req, res) => {
 
 // ── Registro page ─────────────────────────────────────────────
 router.get('/registro', (req, res) => {
-  if (req.session.studentId) return res.redirect('/select-plan');
-  res.sendFile(path.join(__dirname, '../public/registro.html'));
+  res.redirect('/login?mode=register');
 });
 
 // ── POST registro ─────────────────────────────────────────────
@@ -274,16 +280,30 @@ router.get('/api/bonos/liquidation-summary', requireStudent, async (req, res) =>
   res.json(summary);
 });
 
-router.post('/api/bonos/liquidate', requireStudent, async (req, res) => {
+router.post('/api/bonos/liquidate', requireStudent, liquidationUpload.single('receipt'), async (req, res) => {
   const telegram = await getTelegramConfig();
   if (!telegram.botToken || !telegram.chatId) {
     return res.status(503).json({ error: 'Las liquidaciones aún no están conectadas a Telegram. Contacta al administrador.' });
   }
+  if (!req.file) return res.status(400).json({ error: 'Adjunta el comprobante de la transferencia para liquidar.' });
 
   const [students] = await pool.query('SELECT first_name,last_name,phone,school FROM students WHERE id=?', [req.session.studentId]);
   if (!students[0]) return res.status(404).json({ error: 'Estudiante no encontrado.' });
 
-  const result = await createLiquidationRequest(req.session.studentId);
+  let receiptUrl;
+  try {
+    const ext = req.file.originalname.split('.').pop().replace(/[^a-z0-9]/gi, '');
+    const blob = await put(`liquidations/${req.session.studentId}/${uuidv4()}.${ext}`, req.file.buffer, {
+      access: 'public', contentType: req.file.mimetype, addRandomSuffix: true,
+      ...(process.env.BLOB_STORE_ID ? { storeId: process.env.BLOB_STORE_ID } : {})
+    });
+    receiptUrl = blob.url;
+  } catch (error) {
+    console.error('Liquidation receipt upload failed:', error.message);
+    return res.status(503).json({ error: 'No fue posible guardar el comprobante. Inténtalo nuevamente.' });
+  }
+
+  const result = await createLiquidationRequest(req.session.studentId, receiptUrl);
   if (result.error) return res.status(400).json({ error: result.error });
 
   try {
