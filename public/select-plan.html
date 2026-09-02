@@ -139,7 +139,12 @@
       const res=await fetch('/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:sel.plan,payment_method:sel.method})});
       const data=await res.json();
       if(data.success) window.location.href=data.redirect;
-      else{ document.getElementById('alert').textContent=data.error; document.getElementById('alert').className='alert alert-error show'; btn.disabled=false; btn.textContent='Continuar →'; }
+      else{
+        document.getElementById('alert').textContent=data.error||'No pudimos guardar tu plan.';
+        document.getElementById('alert').className='alert alert-error show';
+        btn.disabled=false; btn.textContent='Continuar →';
+        if(data.redirect) setTimeout(()=>{window.location.href=data.redirect;},900);
+      }
     }
 
     async function activarTalonario(){
@@ -160,8 +165,14 @@
     document.getElementById('btnPagarTalonario').addEventListener('click', async function(e){
       e.preventDefault();
       if(!sel.plan){ document.getElementById('alert').textContent='Selecciona un destino primero'; document.getElementById('alert').className='alert alert-error show'; return; }
-      await fetch('/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:sel.plan,payment_method:'talonario'})});
-      window.location.href='/talonario-pago';
+      const res=await fetch('/select-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:sel.plan,payment_method:'talonario'})});
+      const data=await res.json();
+      if(data.success) window.location.href='/talonario-pago';
+      else{
+        document.getElementById('alert').textContent=data.error||'No pudimos guardar tu plan.';
+        document.getElementById('alert').className='alert alert-error show';
+        if(data.redirect) setTimeout(()=>{window.location.href=data.redirect;},900);
+      }
     });
   </script>
 </body>

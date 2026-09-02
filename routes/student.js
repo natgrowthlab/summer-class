@@ -113,29 +113,42 @@ router.post('/select-plan', requireStudent, async (req, res) => {
   const total_cost = PLAN_COSTS[plan];
   if (!total_cost) return res.status(400).json({ error: 'Plan inválido' });
 
-  const [existing] = await pool.query(
-    `SELECT id FROM enrollments WHERE student_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
-    [req.session.studentId]
-  );
+  try {
+    // A student can be removed from the admin panel while their browser keeps
+    // an old cookie. Never try to create an enrollment with that stale id.
+    const [students] = await pool.query('SELECT id FROM students WHERE id=?', [req.session.studentId]);
+    if (!students.length) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Tu sesión ya no es válida. Regístrate nuevamente para continuar.', redirect: '/registro' });
+    }
 
-  let enrollmentId;
-  if (existing.length) {
-    enrollmentId = existing[0].id;
-    await pool.query(
-      'UPDATE enrollments SET plan=?, payment_method=?, total_cost=? WHERE id=?',
-      [plan, payment_method, total_cost, enrollmentId]
+    const [existing] = await pool.query(
+      `SELECT id FROM enrollments WHERE student_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+      [req.session.studentId]
     );
-  } else {
-    enrollmentId = uuidv4();
-    await pool.query(
-      `INSERT INTO enrollments (id, student_id, plan, payment_method, total_cost) VALUES (?,?,?,?,?)`,
-      [enrollmentId, req.session.studentId, plan, payment_method, total_cost]
-    );
+
+    let enrollmentId;
+    if (existing.length) {
+      enrollmentId = existing[0].id;
+      await pool.query(
+        'UPDATE enrollments SET plan=?, payment_method=?, total_cost=? WHERE id=?',
+        [plan, payment_method, total_cost, enrollmentId]
+      );
+    } else {
+      enrollmentId = uuidv4();
+      await pool.query(
+        `INSERT INTO enrollments (id, student_id, plan, payment_method, total_cost) VALUES (?,?,?,?,?)`,
+        [enrollmentId, req.session.studentId, plan, payment_method, total_cost]
+      );
+    }
+
+    req.session.enrollmentId = enrollmentId;
+    const redirect = payment_method === 'talonario' ? '/talonario-pago' : '/pagar';
+    res.json({ success: true, redirect });
+  } catch (error) {
+    console.error('Student onboarding failed:', error.message);
+    res.status(500).json({ error: 'No pudimos guardar tu plan. Inténtalo nuevamente.' });
   }
-
-  req.session.enrollmentId = enrollmentId;
-  const redirect = payment_method === 'talonario' ? '/talonario-pago' : '/pagar';
-  res.json({ success: true, redirect });
 });
 
 // ── Talonario pago page ───────────────────────────────────────
@@ -145,19 +158,41 @@ router.get('/talonario-pago', requireStudent, (req, res) => {
 
 // ── Activar talonario (ya pagué + número) ────────────────────
 router.post('/api/activate-talonario', requireStudent, async (req, res) => {
-  const { talonario_number } = req.body;
+  const { talonario_number, plan } = req.body;
   if (!talonario_number) return res.status(400).json({ error: 'Ingresa el número de talonario' });
+  if (!PLAN_COSTS[plan]) return res.status(400).json({ error: 'Selecciona un destino válido.' });
 
   const [rows] = await pool.query(
     `SELECT tc.* FROM talonario_catalog tc
-     WHERE tc.ticket_number = ? AND tc.is_assigned = TRUE AND tc.assigned_to = ?`,
-    [talonario_number, req.session.studentId]
+     WHERE tc.ticket_number = ? AND tc.plan = ? AND tc.is_assigned = TRUE AND tc.assigned_to = ?`,
+    [talonario_number, plan, req.session.studentId]
   );
 
   if (!rows.length) {
     return res.status(404).json({ error: 'Talonario no encontrado o no asignado a tu cuenta. Contacta al admin.' });
   }
-  res.json({ success: true, redirect: '/dashboard' });
+  try {
+    const [students] = await pool.query('SELECT id FROM students WHERE id=?', [req.session.studentId]);
+    if (!students.length) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Tu sesión ya no es válida. Regístrate nuevamente para continuar.', redirect: '/registro' });
+    }
+    const [existing] = await pool.query(
+      `SELECT id FROM enrollments WHERE student_id=? AND status='active' ORDER BY created_at DESC LIMIT 1`,
+      [req.session.studentId]
+    );
+    const enrollmentId = existing[0]?.id || uuidv4();
+    if (existing.length) {
+      await pool.query('UPDATE enrollments SET plan=?, payment_method=?, total_cost=? WHERE id=?', [plan, 'talonario', PLAN_COSTS[plan], enrollmentId]);
+    } else {
+      await pool.query('INSERT INTO enrollments (id,student_id,plan,payment_method,total_cost) VALUES (?,?,?,?,?)', [enrollmentId, req.session.studentId, plan, 'talonario', PLAN_COSTS[plan]]);
+    }
+    req.session.enrollmentId = enrollmentId;
+    res.json({ success: true, redirect: '/dashboard' });
+  } catch (error) {
+    console.error('Talonario activation failed:', error.message);
+    res.status(500).json({ error: 'No pudimos activar tu talonario. Inténtalo nuevamente.' });
+  }
 });
 
 // ── Pagar page ────────────────────────────────────────────────
