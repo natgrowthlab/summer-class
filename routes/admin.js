@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../lib/db');
 const { requireAdmin, requireRole } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
-const { calcDebt, PLAN_NAMES } = require('../lib/helpers');
+const { calcDebt, PLAN_NAMES, PLAN_COSTS } = require('../lib/helpers');
 const { processPaymentDecision } = require('../lib/paymentActions');
 const { getTelegramConfig, saveTelegramConfig, setWebhook } = require('../lib/telegram');
 const crypto = require('crypto');
@@ -210,18 +210,54 @@ router.get('/api/students', requireAdmin, async (req, res) => {
   res.json({ students });
 });
 
+router.get('/api/available-bonos', requireAdmin, async (req, res) => {
+  const plan = TALONARIO_PLANS.has(req.query.plan) ? req.query.plan : null;
+  if (!plan) return res.status(400).json({ error: 'Selecciona una excursión válida.' });
+  const [bonos] = await pool.query(
+    `SELECT b.id, b.bono_number, tc.ticket_number
+     FROM bonos b
+     JOIN talonario_catalog tc ON tc.id=b.talonario_id
+     WHERE tc.plan=? AND tc.is_assigned=FALSE
+     ORDER BY b.bono_number, tc.ticket_number`,
+    [plan]
+  );
+  res.json({ bonos });
+});
+
 router.post('/api/students', requireRole('owner', 'manager'), async (req, res) => {
-  const { email, first_name, last_name, phone, grade, city, school } = req.body;
-  if (![email, first_name, last_name, phone, grade, city, school].every(value => String(value || '').trim())) {
+  const { email, first_name, last_name, phone, grade, city, school, plan, bono_id } = req.body;
+  if (![email, first_name, last_name, phone, grade, city, school, plan, bono_id].every(value => String(value || '').trim())) {
     return res.status(400).json({ error: 'Completa todos los datos del estudiante.' });
   }
+  if (!TALONARIO_PLANS.has(plan)) return res.status(400).json({ error: 'Selecciona una excursión válida.' });
   try {
+    const [matchingBonos] = await pool.query(
+      `SELECT tc.id AS talonario_id, tc.ticket_number
+       FROM bonos b
+       JOIN talonario_catalog tc ON tc.id=b.talonario_id
+       WHERE b.id=? AND tc.plan=? AND tc.is_assigned=FALSE`,
+      [bono_id, plan]
+    );
+    if (!matchingBonos.length) return res.status(400).json({ error: 'Ese bono ya no está disponible. Selecciona otro.' });
+
     const id = uuidv4();
     await pool.query(
       'INSERT INTO students (id,email,first_name,last_name,phone,grade,city,school) VALUES (?,?,?,?,?,?,?,?)',
       [id, email.trim().toLowerCase(), first_name.trim(), last_name.trim(), phone.trim(), grade.trim(), city.trim(), school.trim()]
     );
-    res.json({ success: true, student: { id, email: email.trim().toLowerCase(), first_name: first_name.trim(), last_name: last_name.trim() } });
+    const [assignment] = await pool.query(
+      'UPDATE talonario_catalog SET is_assigned=TRUE,assigned_to=?,assigned_at=CURRENT_TIMESTAMP WHERE id=? AND is_assigned=FALSE',
+      [id, matchingBonos[0].talonario_id]
+    );
+    if (!assignment.affectedRows) {
+      await pool.query('DELETE FROM students WHERE id=?', [id]);
+      return res.status(400).json({ error: 'Ese bono acaba de ser asignado. Selecciona otro.' });
+    }
+    await pool.query(
+      'INSERT INTO enrollments (id,student_id,plan,payment_method,total_cost,status) VALUES (?,?,?,?,?,?)',
+      [uuidv4(), id, plan, 'talonario', PLAN_COSTS[plan], 'active']
+    );
+    res.json({ success: true, ticket_number: matchingBonos[0].ticket_number, student: { id, email: email.trim().toLowerCase(), first_name: first_name.trim(), last_name: last_name.trim() } });
   } catch (error) {
     if (error.code === '23505') return res.status(400).json({ error: 'Ya existe un estudiante con ese correo.' });
     console.error('Admin student creation failed:', error.message);
