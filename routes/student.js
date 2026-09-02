@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../lib/db');
 const { requireStudent } = require('../middleware/auth');
 const { PLAN_NAMES, PLAN_COSTS, TALONARIO_CONFIG, calcDebt } = require('../lib/helpers');
@@ -28,13 +29,15 @@ router.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
-// ── POST login (por email) ────────────────────────────────────
+// ── POST login (correo y contraseña) ──────────────────────────
 router.post('/login', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Ingresa tu correo' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Ingresa tu correo y contraseña.' });
 
   const [rows] = await pool.query('SELECT * FROM students WHERE email = ?', [email.toLowerCase()]);
-  if (!rows.length) return res.status(404).json({ error: 'Correo no encontrado. ¿Ya tienes cuenta?' });
+  if (!rows.length || !rows[0].password_hash || !(await bcrypt.compare(password, rows[0].password_hash))) {
+    return res.status(401).json({ error: 'Correo o contraseña incorrectos.' });
+  }
 
   const student = rows[0];
   req.session.studentId = student.id;
@@ -49,7 +52,7 @@ router.post('/login', async (req, res) => {
   res.json({ success: true, redirect: '/dashboard' });
 });
 
-// Passwordless recovery/access link. Never reveals whether an address exists.
+// Password reset / first-password link. Never reveals whether an address exists.
 router.post('/request-access', async (req, res) => {
   const email = (req.body.email || '').toLowerCase();
   const [students] = await pool.query('SELECT id,first_name FROM students WHERE email=?', [email]);
@@ -57,18 +60,27 @@ router.post('/request-access', async (req, res) => {
     const token = uuidv4();
     await pool.query('INSERT INTO login_tokens (token,student_id,expires_at) VALUES (?,?,CURRENT_TIMESTAMP + INTERVAL \'30 minutes\')', [token, students[0].id]);
     const link = `${process.env.APP_URL}/access/${token}`;
-    await sendEmail({ to: email, subject: 'Accede a Summer Class', html: `<p>Hola ${students[0].first_name},</p><p>Usa este enlace seguro para acceder a tu cuenta. Vence en 30 minutos:</p><p><a href="${link}">Acceder a Summer Class</a></p>` }).catch(console.error);
+    await sendEmail({ to: email, subject: 'Crea o recupera tu contraseña de Summer Class', html: `<p>Hola ${students[0].first_name},</p><p>Usa este enlace seguro para crear o recuperar tu contraseña. Vence en 30 minutos:</p><p><a href="${link}">Establecer contraseña</a></p>` }).catch(console.error);
   }
-  res.json({ success: true, message: 'Si el correo está registrado, recibirás un enlace de acceso.' });
+  res.json({ success: true, message: 'Si el correo está registrado, recibirás un enlace para crear o recuperar tu contraseña.' });
 });
 
 router.get('/access/:token', async (req, res) => {
-  const [tokens] = await pool.query('SELECT student_id FROM login_tokens WHERE token=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP', [req.params.token]);
-  if (!tokens[0]) return res.status(400).send('Este enlace expiró o ya fue usado. Solicita uno nuevo.');
-  await pool.query('UPDATE login_tokens SET used_at=CURRENT_TIMESTAMP WHERE token=?', [req.params.token]);
-  const [students] = await pool.query('SELECT * FROM students WHERE id=?', [tokens[0].student_id]);
-  req.session.studentId = students[0].id; req.session.studentName = `${students[0].first_name} ${students[0].last_name}`;
-  res.redirect('/dashboard');
+  res.sendFile(path.join(__dirname, '../public/set-password.html'));
+});
+
+router.post('/set-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password || password.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  const [tokens] = await pool.query('SELECT student_id FROM login_tokens WHERE token=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP', [token]);
+  if (!tokens[0]) return res.status(400).json({ error: 'Este enlace expiró o ya fue usado. Solicita uno nuevo.' });
+  const [students] = await pool.query('SELECT id,first_name,last_name FROM students WHERE id=?', [tokens[0].student_id]);
+  if (!students[0]) return res.status(404).json({ error: 'Estudiante no encontrado.' });
+  await pool.query('UPDATE students SET password_hash=? WHERE id=?', [await bcrypt.hash(password, 12), students[0].id]);
+  await pool.query('UPDATE login_tokens SET used_at=CURRENT_TIMESTAMP WHERE token=?', [token]);
+  req.session.studentId = students[0].id;
+  req.session.studentName = `${students[0].first_name} ${students[0].last_name}`;
+  res.json({ success: true, redirect: '/dashboard' });
 });
 
 // ── Registro page ─────────────────────────────────────────────
@@ -78,22 +90,23 @@ router.get('/registro', (req, res) => {
 
 // ── POST registro ─────────────────────────────────────────────
 router.post('/register', async (req, res) => {
-  const { email, first_name, last_name, phone, grade, city, school } = req.body;
-  if (!email || !first_name || !last_name || !phone || !grade || !city || !school)
+  const { email, password, first_name, last_name, phone, grade, city, school } = req.body;
+  if (!email || !password || !first_name || !last_name || !phone || !grade || !city || !school)
     return res.status(400).json({ error: 'Todos los campos son requeridos' });
+  if (password.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
 
   try {
     const [existing] = await pool.query('SELECT id FROM students WHERE email = ?', [email.toLowerCase()]);
     let studentId;
 
     if (existing.length) {
-      studentId = existing[0].id;
+      return res.status(400).json({ error: 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.' });
     } else {
       studentId = uuidv4();
       await pool.query(
-        `INSERT INTO students (id, email, first_name, last_name, phone, grade, city, school)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [studentId, email.toLowerCase(), first_name, last_name, phone, grade, city, school]
+        `INSERT INTO students (id, email, password_hash, first_name, last_name, phone, grade, city, school)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [studentId, email.toLowerCase(), await bcrypt.hash(password, 12), first_name, last_name, phone, grade, city, school]
       );
     }
 
